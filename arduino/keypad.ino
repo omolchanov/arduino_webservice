@@ -1,6 +1,8 @@
 const byte rowPins[4] = {2, 3, 4, 5};
 const byte colPins[4] = {6, 7, 8, 9};
 
+const byte ledPin = 12;
+
 const char keys[4][4] = {
   {'1', '2', '3', 'A'},
   {'4', '5', '6', 'B'},
@@ -11,6 +13,9 @@ const char keys[4][4] = {
 void setup() {
   Serial.begin(9600);
 
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+
   for (byte r = 0; r < 4; r++) {
     pinMode(rowPins[r], OUTPUT);
     digitalWrite(rowPins[r], HIGH);
@@ -19,6 +24,8 @@ void setup() {
   for (byte c = 0; c < 4; c++) {
     pinMode(colPins[c], INPUT_PULLUP);
   }
+
+  Serial.println("Keypad ready");
 }
 
 void loop() {
@@ -31,7 +38,14 @@ void loop() {
         delay(20);
 
         if (digitalRead(colPins[c]) == LOW) {
-          Serial.println(keys[r][c]);
+          char key = keys[r][c];
+
+          Serial.print("Pressed: ");
+          Serial.println(key);
+
+          digitalWrite(ledPin, HIGH);
+          delay(100);
+          digitalWrite(ledPin, LOW);
 
           while (digitalRead(colPins[c]) == LOW) {
             delay(10);

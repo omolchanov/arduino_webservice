@@ -18,6 +18,8 @@ BAUD_RATE = 9600
 RECONNECT_DELAY = 3
 ARDUINO_BOOT_DELAY = 2
 VALID_KEYS = set("0123456789*#ABCD")
+PRESSED_PREFIX = "Pressed: "
+IGNORED_LINES = {"Keypad ready"}
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
@@ -28,6 +30,20 @@ serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+def parse_key_line(line: str) -> str | None:
+    line = line.strip()
+    if not line or line in IGNORED_LINES:
+        return None
+    if line.startswith(PRESSED_PREFIX):
+        key = line[len(PRESSED_PREFIX) :].strip()
+        if len(key) == 1 and key in VALID_KEYS:
+            return key
+        return None
+    if len(line) == 1 and line in VALID_KEYS:
+        return line
+    return None
 
 
 async def broadcast_message(message: str) -> None:
@@ -80,8 +96,9 @@ def read_keys(port: serial.Serial) -> None:
         if not raw:
             continue
         line = raw.decode(errors="ignore").strip()
-        if len(line) == 1 and line in VALID_KEYS:
-            asyncio.run_coroutine_threadsafe(key_queue.put(line), event_loop)
+        key = parse_key_line(line)
+        if key:
+            asyncio.run_coroutine_threadsafe(key_queue.put(key), event_loop)
         elif line:
             logger.debug("Ignored serial line: %r", line)
 
