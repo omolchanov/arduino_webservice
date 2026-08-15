@@ -8,7 +8,7 @@ Read 4x4 keypad input from an Arduino Uno over USB serial and display pressed ke
 
 ### Requirement: Serial key ingestion
 
-The system SHALL read key characters from an Arduino Uno over USB serial at 9600 baud. Valid keys are digits `0`–`9`, symbols `*` and `#`, and letters `A`–`D`. The server SHALL accept key lines in either format:
+The system SHALL read key characters from an Arduino Uno over USB serial at 9600 baud. The serial read loop SHALL parse both keypad key lines and `Distance: <number> cm` lines from the same COM port connection, broadcasting the appropriate WebSocket event type for each. Valid keys are digits `0`–`9`, symbols `*` and `#`, and letters `A`–`D`. The server SHALL accept key lines in either format:
 
 - `Pressed: <key>` (preferred, from LED-enabled sketch)
 - `<key>` alone on a line (legacy format)
@@ -32,8 +32,14 @@ Startup banner lines such as `Keypad ready` SHALL be ignored. Each valid key rec
 
 #### Scenario: Invalid serial data ignored
 
-- **WHEN** the serial port sends an empty line or a line that does not contain a valid key
+- **WHEN** the serial port sends an empty line or a line that does not contain a valid key or distance reading
 - **THEN** the server ignores it and does not broadcast
+
+#### Scenario: Key and distance on separate uploads
+
+- **WHEN** the keypad sketch is uploaded, key lines are broadcast as keys
+- **WHEN** the distance sketch is uploaded, distance lines are broadcast as distance events
+- **AND** the server handles either format on the same COM port connection
 
 #### Scenario: Serial port unavailable
 
@@ -69,7 +75,7 @@ The Arduino sketch SHALL blink an LED connected to pin D12 for 100ms on each deb
 
 ### Requirement: Live keypad display
 
-The system SHALL serve a web page at `GET /` that connects to a WebSocket and displays pressed keys in real time. The page SHALL show the most recently pressed key prominently and a scrolling list of recent keys.
+The system SHALL serve a web page at `GET /` that connects to a WebSocket and displays pressed keys in real time. The page SHALL show the most recently pressed key prominently and a scrolling list of recent keys. A sidebar SHALL provide navigation to Keypad and Sensors. Connection status SHALL be shown as a single **Online** / **Offline** label in the top-right corner of the page (not as a per-page widget).
 
 #### Scenario: Key appears in browser
 
@@ -80,11 +86,11 @@ The system SHALL serve a web page at `GET /` that connects to a WebSocket and di
 
 - **WHEN** the WebSocket connection drops
 - **THEN** the page attempts to reconnect automatically
-- **AND** shows a single connection status label (Connected / Disconnected)
+- **AND** the top-right status label shows Offline until serial reconnects
 
 ### Requirement: Minimal project structure
 
-The application SHALL use a single Python file (`main.py`) and a single HTML file (`static/index.html`) with embedded CSS and JavaScript. No MVC folder structure, database, or authentication for v1.
+The application SHALL use a single Python file (`main.py`) and static HTML files (`static/index.html`, `static/sensors.html`) with embedded CSS and JavaScript. No MVC folder structure, database, or authentication for v1.
 
 #### Scenario: Application starts
 
