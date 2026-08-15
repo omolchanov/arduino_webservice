@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arduino Keypad</title>
+  <title>Arduino Sensors</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,7 +54,7 @@
       color: #fff;
       background: #2a2a30;
       border-color: #4a4a55;
-      border-left: 3px solid #4ade80;
+      border-left: 3px solid #60a5fa;
       padding-left: calc(0.75rem - 2px);
     }
 
@@ -121,14 +121,6 @@
       flex-direction: column;
     }
 
-    .card-wide {
-      grid-column: span 1;
-    }
-
-    @media (min-width: 720px) {
-      .card-wide { grid-column: span 2; max-width: 480px; }
-    }
-
     .card-header {
       font-size: 0.8rem;
       font-weight: 600;
@@ -144,34 +136,21 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
+      align-items: center;
     }
 
-    .last-key {
-      font-size: 4.5rem;
+    .distance-value {
+      font-size: 3.5rem;
       font-weight: 700;
       line-height: 1;
-      color: #e94560;
-      text-align: center;
+      color: #60a5fa;
     }
 
-    .last-key.empty { color: #444; }
-
-    .history {
-      list-style: none;
-      max-height: 220px;
-      overflow-y: auto;
-      border: 1px solid #3a3a42;
-      background: #1a1a20;
-    }
-
-    .history li {
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid #2e2e34;
+    .distance-unit {
       font-size: 1rem;
-      font-family: "Consolas", monospace;
+      color: #888;
+      margin-top: 0.5rem;
     }
-
-    .history li:last-child { border-bottom: none; }
 
     .notification {
       position: fixed;
@@ -194,8 +173,8 @@
   <div class="layout">
     <aside class="sidebar">
       <nav>
-        <a href="/" class="active">Keypad</a>
-        <a href="/sensors">Sensors</a>
+        <a href="/">Keypad</a>
+        <a href="/sensors" class="active">Sensors</a>
       </nav>
     </aside>
 
@@ -205,20 +184,14 @@
       </header>
 
       <main class="content">
-      <h1 class="page-title">Keypad Live</h1>
+      <h1 class="page-title">Sensors</h1>
 
       <div class="dashboard">
         <div class="card">
-          <div class="card-header">Last Key</div>
+          <div class="card-header">Distance</div>
           <div class="card-body">
-            <div id="lastKey" class="last-key empty">—</div>
-          </div>
-        </div>
-
-        <div class="card card-wide">
-          <div class="card-header">Recent Keys</div>
-          <div class="card-body" style="padding: 0;">
-            <ul id="history" class="history"></ul>
+            <div id="distanceValue" class="distance-value">—</div>
+            <div class="distance-unit">cm</div>
           </div>
         </div>
       </div>
@@ -229,9 +202,7 @@
   <div id="notification" class="notification"></div>
 
   <script>
-    const MAX_HISTORY = 50;
-    const lastKeyEl = document.getElementById("lastKey");
-    const historyEl = document.getElementById("history");
+    const distanceValueEl = document.getElementById("distanceValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
     let ws = null;
@@ -248,26 +219,20 @@
       statusEl.className = `app-status ${connected ? "online" : "offline"}`;
     }
 
+    function setDistance(cm) {
+      distanceValueEl.textContent = Number(cm).toFixed(1);
+    }
+
     async function pollStatus() {
       try {
         const res = await fetch("/api/status");
         const data = await res.json();
         setStatus(data.serial_connected);
+        if (data.last_distance_cm != null) {
+          setDistance(data.last_distance_cm);
+        }
       } catch {
         setStatus(false);
-      }
-    }
-
-    function appendKey(key) {
-      lastKeyEl.textContent = key;
-      lastKeyEl.classList.remove("empty");
-
-      const li = document.createElement("li");
-      li.textContent = key;
-      historyEl.insertBefore(li, historyEl.firstChild);
-
-      while (historyEl.children.length > MAX_HISTORY) {
-        historyEl.removeChild(historyEl.lastChild);
       }
     }
 
@@ -285,7 +250,9 @@
             }
             return;
           }
-          if (data.key) appendKey(data.key);
+          if (data.type === "distance" && data.cm != null) {
+            setDistance(data.cm);
+          }
         } catch {
           showNotification("Invalid message from server");
         }

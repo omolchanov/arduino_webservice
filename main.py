@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -20,11 +21,13 @@ ARDUINO_BOOT_DELAY = 2
 VALID_KEYS = set("0123456789*#ABCD")
 PRESSED_PREFIX = "Pressed: "
 IGNORED_LINES = {"Keypad ready"}
+DISTANCE_PATTERN = re.compile(r"^Distance:\s*([\d.]+)\s*cm$")
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
 event_loop: asyncio.AbstractEventLoop | None = None
 serial_connected = False
+last_distance_cm: float | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -46,6 +49,13 @@ def parse_key_line(line: str) -> str | None:
     return None
 
 
+def parse_distance_line(line: str) -> float | None:
+    match = DISTANCE_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return float(match.group(1))
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -60,6 +70,10 @@ async def broadcast_message(message: str) -> None:
 
 async def broadcast_key(key: str) -> None:
     await broadcast_message(json.dumps({"type": "key", "key": key}))
+
+
+async def broadcast_distance(cm: float) -> None:
+    await broadcast_message(json.dumps({"type": "distance", "cm": cm}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -79,6 +93,13 @@ def notify_serial_status(connected: bool) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_serial_status(connected), event_loop)
 
 
+def notify_distance(cm: float) -> None:
+    global last_distance_cm
+    last_distance_cm = cm
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_distance(cm), event_loop)
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -86,7 +107,7 @@ async def consume_keys() -> None:
         await broadcast_key(key)
 
 
-def read_keys(port: serial.Serial) -> None:
+def read_serial(port: serial.Serial) -> None:
     while not serial_stop.is_set():
         try:
             raw = port.readline()
@@ -96,10 +117,17 @@ def read_keys(port: serial.Serial) -> None:
         if not raw:
             continue
         line = raw.decode(errors="ignore").strip()
+        if not line:
+            continue
+        distance = parse_distance_line(line)
+        if distance is not None:
+            logger.info("Distance: %.2f cm (clients: %d)", distance, len(clients))
+            notify_distance(distance)
+            continue
         key = parse_key_line(line)
         if key:
             asyncio.run_coroutine_threadsafe(key_queue.put(key), event_loop)
-        elif line:
+        else:
             logger.debug("Ignored serial line: %r", line)
 
 
@@ -127,7 +155,7 @@ def serial_manager() -> None:
             serial_connected = True
             notify_serial_status(True)
             logger.info("Serial connected on %s", COM_PORT)
-            read_keys(port)
+            read_serial(port)
         except serial.SerialException as exc:
             logger.warning("Serial unavailable on %s: %s", COM_PORT, exc)
         except Exception as exc:
@@ -178,12 +206,18 @@ async def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/sensors")
+async def sensors():
+    return FileResponse(STATIC_DIR / "sensors.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
         "serial_connected": serial_connected,
         "com_port": COM_PORT,
         "ws_clients": len(clients),
+        "last_distance_cm": last_distance_cm,
     }
 
 
@@ -200,6 +234,10 @@ async def websocket_endpoint(websocket: WebSocket):
             }
         )
     )
+    if last_distance_cm is not None:
+        await websocket.send_text(
+            json.dumps({"type": "distance", "cm": last_distance_cm})
+        )
     try:
         while True:
             await websocket.receive_text()
