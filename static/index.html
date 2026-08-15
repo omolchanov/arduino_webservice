@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arduino Keypad</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 500;
+      color: #888;
+      margin-bottom: 2rem;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      padding: 0.4rem 1rem;
+      border-radius: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .status.connected { background: #0f3d2e; color: #4ade80; }
+    .status.disconnected { background: #3d1a1a; color: #f87171; }
+
+    .last-key {
+      font-size: 8rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #e94560;
+      margin-bottom: 2rem;
+      min-height: 8rem;
+    }
+
+    .last-key.empty { color: #333; }
+
+    .history-label {
+      font-size: 0.85rem;
+      color: #666;
+      align-self: flex-start;
+      margin-bottom: 0.5rem;
+    }
+
+    .history {
+      list-style: none;
+      width: 100%;
+      max-width: 320px;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #16213e;
+    }
+
+    .history li {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #222;
+      font-size: 1.1rem;
+      font-family: monospace;
+    }
+
+    .history li:last-child { border-bottom: none; }
+
+    .notification {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .notification.show { opacity: 1; }
+    .notification.error { background: #7f1d1d; color: #fca5a5; }
+    .notification.success { background: #14532d; color: #86efac; }
+  </style>
+</head>
+<body>
+  <h1>Arduino Keypad Live</h1>
+  <div id="status" class="status disconnected">Disconnected</div>
+  <div id="lastKey" class="last-key empty">—</div>
+  <div class="history-label">Recent keys</div>
+  <ul id="history" class="history"></ul>
+  <div id="notification" class="notification"></div>
+
+  <script>
+    const MAX_HISTORY = 50;
+    const lastKeyEl = document.getElementById("lastKey");
+    const historyEl = document.getElementById("history");
+    const statusEl = document.getElementById("status");
+    const notificationEl = document.getElementById("notification");
+    let ws = null;
+    let reconnectTimer = null;
+
+    function showNotification(message, type = "error") {
+      notificationEl.textContent = message;
+      notificationEl.className = `notification show ${type}`;
+      setTimeout(() => notificationEl.classList.remove("show"), 3000);
+    }
+
+    function setStatus(connected) {
+      statusEl.textContent = connected ? "Connected" : "Disconnected";
+      statusEl.className = `status ${connected ? "connected" : "disconnected"}`;
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        setStatus(data.serial_connected);
+      } catch {
+        setStatus(false);
+      }
+    }
+
+    function appendKey(key) {
+      lastKeyEl.textContent = key;
+      lastKeyEl.classList.remove("empty");
+
+      const li = document.createElement("li");
+      li.textContent = key;
+      historyEl.insertBefore(li, historyEl.firstChild);
+
+      while (historyEl.children.length > MAX_HISTORY) {
+        historyEl.removeChild(historyEl.lastChild);
+      }
+    }
+
+    function connect() {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "serial_status") {
+            setStatus(data.connected);
+            if (data.connected) {
+              showNotification("Arduino reconnected", "success");
+            }
+            return;
+          }
+          if (data.key) appendKey(data.key);
+        } catch {
+          showNotification("Invalid message from server");
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus(false);
+        reconnectTimer = setTimeout(connect, 2000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+        showNotification("Connection error");
+      };
+    }
+
+    connect();
+    pollStatus();
+    setInterval(pollStatus, 3000);
+  </script>
+</body>
+</html>

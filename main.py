@@ -1,0 +1,193 @@
+import asyncio
+import json
+import logging
+import threading
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+import serial
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+COM_PORT = "COM8"
+BAUD_RATE = 9600
+RECONNECT_DELAY = 3
+ARDUINO_BOOT_DELAY = 2
+VALID_KEYS = set("0123456789*#ABCD")
+
+clients: list[WebSocket] = []
+key_queue: asyncio.Queue[str] | None = None
+event_loop: asyncio.AbstractEventLoop | None = None
+serial_connected = False
+serial_stop = threading.Event()
+serial_port: serial.Serial | None = None
+serial_thread: threading.Thread | None = None
+
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+async def broadcast_message(message: str) -> None:
+    dead: list[WebSocket] = []
+    for client in clients:
+        try:
+            await client.send_text(message)
+        except Exception:
+            dead.append(client)
+    for client in dead:
+        if client in clients:
+            clients.remove(client)
+
+
+async def broadcast_key(key: str) -> None:
+    await broadcast_message(json.dumps({"type": "key", "key": key}))
+
+
+async def broadcast_serial_status(connected: bool) -> None:
+    await broadcast_message(
+        json.dumps(
+            {
+                "type": "serial_status",
+                "connected": connected,
+                "com_port": COM_PORT,
+            }
+        )
+    )
+
+
+def notify_serial_status(connected: bool) -> None:
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_serial_status(connected), event_loop)
+
+
+async def consume_keys() -> None:
+    while True:
+        key = await key_queue.get()
+        logger.info("Key pressed: %s (clients: %d)", key, len(clients))
+        await broadcast_key(key)
+
+
+def read_keys(port: serial.Serial) -> None:
+    while not serial_stop.is_set():
+        try:
+            raw = port.readline()
+        except serial.SerialException as exc:
+            logger.error("Serial read failed: %s", exc)
+            break
+        if not raw:
+            continue
+        line = raw.decode(errors="ignore").strip()
+        if len(line) == 1 and line in VALID_KEYS:
+            asyncio.run_coroutine_threadsafe(key_queue.put(line), event_loop)
+        elif line:
+            logger.debug("Ignored serial line: %r", line)
+
+
+def close_port(port: serial.Serial | None) -> None:
+    global serial_port
+    if port and port.is_open:
+        try:
+            port.close()
+        except serial.SerialException:
+            pass
+    if serial_port is port:
+        serial_port = None
+
+
+def serial_manager() -> None:
+    global serial_connected, serial_port
+
+    while not serial_stop.is_set():
+        port = None
+        try:
+            port = serial.Serial(COM_PORT, BAUD_RATE, timeout=1)
+            serial_port = port
+            time.sleep(ARDUINO_BOOT_DELAY)
+            port.reset_input_buffer()
+            serial_connected = True
+            notify_serial_status(True)
+            logger.info("Serial connected on %s", COM_PORT)
+            read_keys(port)
+        except serial.SerialException as exc:
+            logger.warning("Serial unavailable on %s: %s", COM_PORT, exc)
+        except Exception as exc:
+            logger.error("Serial manager error: %s", exc)
+        finally:
+            was_connected = serial_connected
+            serial_connected = False
+            close_port(port)
+            if was_connected:
+                notify_serial_status(False)
+                logger.info("Serial disconnected from %s", COM_PORT)
+
+        if not serial_stop.is_set():
+            logger.info("Retrying serial on %s in %ds...", COM_PORT, RECONNECT_DELAY)
+            serial_stop.wait(RECONNECT_DELAY)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global key_queue, event_loop, serial_thread
+    event_loop = asyncio.get_running_loop()
+    key_queue = asyncio.Queue()
+    consumer = asyncio.create_task(consume_keys())
+
+    serial_stop.clear()
+    serial_thread = threading.Thread(target=serial_manager, daemon=True)
+    serial_thread.start()
+
+    yield
+
+    serial_stop.set()
+    if serial_thread:
+        serial_thread.join(timeout=5)
+    serial_thread = None
+
+    consumer.cancel()
+    try:
+        await consumer
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+async def index():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/api/status")
+async def status():
+    return {
+        "serial_connected": serial_connected,
+        "com_port": COM_PORT,
+        "ws_clients": len(clients),
+    }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    clients.append(websocket)
+    await websocket.send_text(
+        json.dumps(
+            {
+                "type": "serial_status",
+                "connected": serial_connected,
+                "com_port": COM_PORT,
+            }
+        )
+    )
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if websocket in clients:
+            clients.remove(websocket)

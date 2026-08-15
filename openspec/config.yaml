@@ -1,0 +1,10 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.12, FastAPI, uvicorn, pyserial
+  Hardware: Arduino Uno 4x4 keypad over USB serial at 9600 baud
+  Structure: minimal — single main.py + static/index.html (no MVC for v1)
+  Platform: Windows (COM port: COM8)
+  Run: uvicorn main:app --reload
+  Branch naming on apply: feature-<change-name>
+  On archive: commit and push all changes
