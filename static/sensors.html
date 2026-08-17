@@ -130,6 +130,19 @@
       background: #1c1c22;
     }
 
+    .sensor-status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+      border-radius: 50%;
+      background: #888;
+    }
+
+    .sensor-status-dot.ok { background: #4ade80; }
+    .sensor-status-dot.error { background: #f87171; }
+
     .card-body {
       padding: 1.25rem 0.85rem;
       flex: 1;
@@ -188,14 +201,18 @@
 
       <div class="dashboard">
         <div class="card">
-          <div class="card-header">Distance</div>
+          <div class="card-header">
+            Distance <span id="distanceDot" class="sensor-status-dot initializing" aria-hidden="true"></span>
+          </div>
           <div class="card-body">
             <div id="distanceValue" class="distance-value">—</div>
             <div class="distance-unit">cm</div>
           </div>
         </div>
         <div class="card">
-          <div class="card-header">Lighting level</div>
+          <div class="card-header">
+            Lighting level <span id="lightDot" class="sensor-status-dot initializing" aria-hidden="true"></span>
+          </div>
           <div class="card-body">
             <div id="lightValue" class="distance-value">—</div>
             <div class="distance-unit">units</div>
@@ -209,12 +226,31 @@
   <div id="notification" class="notification"></div>
 
   <script>
+    const SENSOR_PENDING_MS = 10000;
+
     const distanceValueEl = document.getElementById("distanceValue");
     const lightValueEl = document.getElementById("lightValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
+    const sensors = {
+      distance: {
+        dotState: "initializing",
+        dotEl: document.getElementById("distanceDot"),
+        pendingTimer: null,
+        pendingState: null,
+        initTimeoutId: null,
+      },
+      light: {
+        dotState: "initializing",
+        dotEl: document.getElementById("lightDot"),
+        pendingTimer: null,
+        pendingState: null,
+        initTimeoutId: null,
+      },
+    };
     let ws = null;
     let reconnectTimer = null;
+    let arduinoOnline = false;
 
     function showNotification(message, type = "error") {
       notificationEl.textContent = message;
@@ -222,9 +258,115 @@
       setTimeout(() => notificationEl.classList.remove("show"), 3000);
     }
 
+    function setSensorDot(sensorId, state) {
+      sensors[sensorId].dotEl.className = `sensor-status-dot ${state}`;
+    }
+
+    function clearPendingTransition(sensor) {
+      if (sensor.pendingTimer) {
+        clearTimeout(sensor.pendingTimer);
+        sensor.pendingTimer = null;
+      }
+      sensor.pendingState = null;
+    }
+
+    function clearInitTimeout(sensor) {
+      if (sensor.initTimeoutId) {
+        clearTimeout(sensor.initTimeoutId);
+        sensor.initTimeoutId = null;
+      }
+    }
+
+    function clearSensorTimers(sensor) {
+      clearPendingTransition(sensor);
+      clearInitTimeout(sensor);
+    }
+
+    function startSensorTimeouts() {
+      for (const [id, sensor] of Object.entries(sensors)) {
+        if (sensor.dotState !== "initializing") continue;
+        clearInitTimeout(sensor);
+        sensor.initTimeoutId = setTimeout(() => {
+          if (arduinoOnline && sensor.dotState === "initializing") {
+            setSensorStatus(id, "error");
+          }
+        }, SENSOR_PENDING_MS);
+      }
+    }
+
+    function isDistanceValid(cm) {
+      return Number(cm) > 0;
+    }
+
+    function isLightValid(level) {
+      return Number(level) > 0;
+    }
+
+    function setSensorStatus(sensorId, state) {
+      sensors[sensorId].dotState = state;
+      setSensorDot(sensorId, state);
+    }
+
+    function applySensorReading(sensorId, value, live) {
+      if (!arduinoOnline || !live) return;
+      const sensor = sensors[sensorId];
+      const valid = sensorId === "distance"
+        ? isDistanceValid(value)
+        : isLightValid(value);
+      const targetState = valid ? "ok" : "error";
+
+      clearInitTimeout(sensor);
+
+      if (sensor.dotState === "initializing") {
+        clearPendingTransition(sensor);
+        setSensorStatus(sensorId, targetState);
+        return;
+      }
+
+      if (targetState === sensor.dotState) {
+        clearPendingTransition(sensor);
+        return;
+      }
+
+      if (sensor.pendingState === targetState) {
+        return;
+      }
+
+      clearPendingTransition(sensor);
+      sensor.pendingState = targetState;
+      sensor.pendingTimer = setTimeout(() => {
+        if (!arduinoOnline) return;
+        setSensorStatus(sensorId, targetState);
+        sensor.pendingState = null;
+        sensor.pendingTimer = null;
+      }, SENSOR_PENDING_MS);
+    }
+
+    function onArduinoOffline() {
+      for (const [id, sensor] of Object.entries(sensors)) {
+        clearSensorTimers(sensor);
+        setSensorStatus(id, "error");
+      }
+    }
+
+    function onArduinoOnline() {
+      for (const [id, sensor] of Object.entries(sensors)) {
+        clearSensorTimers(sensor);
+        setSensorStatus(id, "initializing");
+      }
+      startSensorTimeouts();
+    }
+
     function setStatus(connected) {
       statusEl.textContent = connected ? "Online" : "Offline";
       statusEl.className = `app-status ${connected ? "online" : "offline"}`;
+      if (connected === arduinoOnline) return;
+      arduinoOnline = connected;
+      if (connected) {
+        onArduinoOnline();
+      } else {
+        onArduinoOffline();
+      }
     }
 
     function setDistance(cm) {
@@ -259,17 +401,20 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === "serial_status") {
+            const wasOffline = !arduinoOnline;
             setStatus(data.connected);
-            if (data.connected) {
+            if (data.connected && wasOffline) {
               showNotification("Arduino reconnected", "success");
             }
             return;
           }
           if (data.type === "distance" && data.cm != null) {
             setDistance(data.cm);
+            applySensorReading("distance", data.cm, !data.cached);
           }
           if (data.type === "light" && data.level != null) {
             setLight(data.level);
+            applySensorReading("light", data.level, !data.cached);
           }
         } catch {
           showNotification("Invalid message from server");

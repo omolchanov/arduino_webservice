@@ -45,7 +45,7 @@ The system SHALL read light level measurements from an Arduino Uno over USB seri
 
 ### Requirement: Sensors page
 
-The system SHALL serve a web page at `GET /sensors` that displays live sensor readings from the Arduino. The page SHALL include a **Distance** section showing the latest value in centimeters and a **Lighting level** section showing the latest inverted ADC integer with a **units** label. A sidebar SHALL provide navigation to Keypad and Sensors. Connection status SHALL be shown as a single **Online** / **Offline** label in the top-right corner of the page (not as a per-page widget).
+The system SHALL serve a web page at `GET /sensors` that displays live sensor readings from the Arduino. The page SHALL include a **Distance** section showing the latest value in centimeters and a **Lighting level** section showing the latest inverted ADC integer with a **units** label. Each sensor card header SHALL display a small status dot immediately to the right of the sensor name. A sidebar SHALL provide navigation to Keypad and Sensors. Connection status SHALL be shown as a single **Online** / **Offline** label in the top-right corner of the page (not as a per-page widget).
 
 #### Scenario: Distance updates on Sensors page
 
@@ -61,3 +61,39 @@ The system SHALL serve a web page at `GET /sensors` that displays live sensor re
 
 - **WHEN** a user opens `/` or `/sensors`
 - **THEN** both pages show sidebar navigation links to switch between Keypad and Sensors
+
+### Requirement: Per-sensor status dot on Sensors page
+
+Each sensor card on `/sensors` (**Distance**, **Lighting level**) SHALL show a small circular status dot to the right of the card header name. The dot SHALL use three visual states: **grey** (initializing), **green** (valid data), and **red** (invalid data or Arduino offline). State SHALL be determined in the browser from live WebSocket `distance`/`light` events; cached WebSocket snapshots SHALL update displayed values only and SHALL NOT affect dot state.
+
+A reading is **valid** when distance `cm > 0` or light `level > 0`; a reading of **0** is **invalid**. While in the initializing state, the first live reading SHALL immediately set the dot to green (valid) or red (invalid). Transitions between green and red after initialization SHALL be debounced by 10 seconds — the dot SHALL change only after readings remain consistently valid or invalid for 10 seconds.
+
+#### Scenario: Dots start grey on page load
+
+- **WHEN** a user opens `/sensors` before live sensor data is evaluated
+- **THEN** both sensor status dots are grey
+
+#### Scenario: Dot resolves immediately from initializing
+
+- **WHEN** Arduino is online and the page receives the first live reading for a sensor
+- **THEN** that sensor's dot immediately turns green if the value is valid, or red if the value is 0
+
+#### Scenario: Dot debounces green to red
+
+- **WHEN** a sensor dot is green and live readings become invalid (value 0)
+- **THEN** the dot stays green for 10 seconds and turns red only if readings remain invalid
+
+#### Scenario: Dot debounces red to green
+
+- **WHEN** a sensor dot is red and live readings become valid (value > 0)
+- **THEN** the dot stays red for 10 seconds and turns green only if readings remain valid
+
+#### Scenario: Dot turns red when no live data while initializing
+
+- **WHEN** Arduino is online but a sensor receives no live reading within 10 seconds of coming online
+- **THEN** that sensor's status dot turns red
+
+#### Scenario: All dots red when Arduino is offline
+
+- **WHEN** Arduino serial is disconnected (`serial_connected` is false)
+- **THEN** all sensor status dots turn red immediately
