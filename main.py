@@ -22,12 +22,14 @@ VALID_KEYS = set("0123456789*#ABCD")
 PRESSED_PREFIX = "Pressed: "
 IGNORED_LINES = {"Keypad ready"}
 DISTANCE_PATTERN = re.compile(r"^Distance:\s*([\d.]+)\s*cm$")
+LIGHT_PATTERN = re.compile(r"^Light:\s*(\d+)$")
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
 event_loop: asyncio.AbstractEventLoop | None = None
 serial_connected = False
 last_distance_cm: float | None = None
+last_light_level: int | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -56,6 +58,13 @@ def parse_distance_line(line: str) -> float | None:
     return float(match.group(1))
 
 
+def parse_light_line(line: str) -> int | None:
+    match = LIGHT_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return int(match.group(1))
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -74,6 +83,10 @@ async def broadcast_key(key: str) -> None:
 
 async def broadcast_distance(cm: float) -> None:
     await broadcast_message(json.dumps({"type": "distance", "cm": cm}))
+
+
+async def broadcast_light(level: int) -> None:
+    await broadcast_message(json.dumps({"type": "light", "level": level}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -100,6 +113,13 @@ def notify_distance(cm: float) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_distance(cm), event_loop)
 
 
+def notify_light(level: int) -> None:
+    global last_light_level
+    last_light_level = level
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_light(level), event_loop)
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -123,6 +143,11 @@ def read_serial(port: serial.Serial) -> None:
         if distance is not None:
             logger.info("Distance: %.2f cm (clients: %d)", distance, len(clients))
             notify_distance(distance)
+            continue
+        light = parse_light_line(line)
+        if light is not None:
+            logger.info("Light: %d (clients: %d)", light, len(clients))
+            notify_light(light)
             continue
         key = parse_key_line(line)
         if key:
@@ -218,6 +243,7 @@ async def status():
         "com_port": COM_PORT,
         "ws_clients": len(clients),
         "last_distance_cm": last_distance_cm,
+        "last_light_level": last_light_level,
     }
 
 
@@ -237,6 +263,10 @@ async def websocket_endpoint(websocket: WebSocket):
     if last_distance_cm is not None:
         await websocket.send_text(
             json.dumps({"type": "distance", "cm": last_distance_cm})
+        )
+    if last_light_level is not None:
+        await websocket.send_text(
+            json.dumps({"type": "light", "level": last_light_level})
         )
     try:
         while True:

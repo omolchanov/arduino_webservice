@@ -194,6 +194,13 @@
             <div class="distance-unit">cm</div>
           </div>
         </div>
+        <div class="card">
+          <div class="card-header">Lighting level</div>
+          <div class="card-body">
+            <div id="lightValue" class="distance-value">—</div>
+            <div class="distance-unit">units</div>
+          </div>
+        </div>
       </div>
       </main>
     </div>
@@ -203,6 +210,7 @@
 
   <script>
     const distanceValueEl = document.getElementById("distanceValue");
+    const lightValueEl = document.getElementById("lightValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
     let ws = null;
@@ -223,6 +231,10 @@
       distanceValueEl.textContent = Number(cm).toFixed(1);
     }
 
+    function setLight(level) {
+      lightValueEl.textContent = String(Math.round(level));
+    }
+
     async function pollStatus() {
       try {
         const res = await fetch("/api/status");
@@ -230,6 +242,9 @@
         setStatus(data.serial_connected);
         if (data.last_distance_cm != null) {
           setDistance(data.last_distance_cm);
+        }
+        if (data.last_light_level != null) {
+          setLight(data.last_light_level);
         }
       } catch {
         setStatus(false);
@@ -252,6 +267,9 @@
           }
           if (data.type === "distance" && data.cm != null) {
             setDistance(data.cm);
+          }
+          if (data.type === "light" && data.level != null) {
+            setLight(data.level);
           }
         } catch {
           showNotification("Invalid message from server");
