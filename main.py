@@ -23,6 +23,7 @@ PRESSED_PREFIX = "Pressed: "
 IGNORED_LINES = {"Keypad ready"}
 DISTANCE_PATTERN = re.compile(r"^Distance:\s*([\d.]+)\s*cm$")
 LIGHT_PATTERN = re.compile(r"^Light:\s*(\d+)$")
+TEMPERATURE_PATTERN = re.compile(r"^Temperature:\s*([\d.]+)\s*C$")
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
@@ -30,6 +31,7 @@ event_loop: asyncio.AbstractEventLoop | None = None
 serial_connected = False
 last_distance_cm: float | None = None
 last_light_level: int | None = None
+last_temperature_c: float | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -65,6 +67,13 @@ def parse_light_line(line: str) -> int | None:
     return int(match.group(1))
 
 
+def parse_temperature_line(line: str) -> float | None:
+    match = TEMPERATURE_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return float(match.group(1))
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -87,6 +96,10 @@ async def broadcast_distance(cm: float) -> None:
 
 async def broadcast_light(level: int) -> None:
     await broadcast_message(json.dumps({"type": "light", "level": level}))
+
+
+async def broadcast_temperature(c: float) -> None:
+    await broadcast_message(json.dumps({"type": "temperature", "c": c}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -120,6 +133,13 @@ def notify_light(level: int) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_light(level), event_loop)
 
 
+def notify_temperature(c: float) -> None:
+    global last_temperature_c
+    last_temperature_c = c
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_temperature(c), event_loop)
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -148,6 +168,11 @@ def read_serial(port: serial.Serial) -> None:
         if light is not None:
             logger.info("Light: %d (clients: %d)", light, len(clients))
             notify_light(light)
+            continue
+        temperature = parse_temperature_line(line)
+        if temperature is not None:
+            logger.info("Temperature: %.2f C (clients: %d)", temperature, len(clients))
+            notify_temperature(temperature)
             continue
         key = parse_key_line(line)
         if key:
@@ -244,6 +269,7 @@ async def status():
         "ws_clients": len(clients),
         "last_distance_cm": last_distance_cm,
         "last_light_level": last_light_level,
+        "last_temperature_c": last_temperature_c,
     }
 
 
@@ -267,6 +293,12 @@ async def websocket_endpoint(websocket: WebSocket):
     if last_light_level is not None:
         await websocket.send_text(
             json.dumps({"type": "light", "level": last_light_level, "cached": True})
+        )
+    if last_temperature_c is not None:
+        await websocket.send_text(
+            json.dumps(
+                {"type": "temperature", "c": last_temperature_c, "cached": True}
+            )
         )
     try:
         while True:
