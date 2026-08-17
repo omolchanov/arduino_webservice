@@ -262,11 +262,11 @@ async def websocket_endpoint(websocket: WebSocket):
     )
     if last_distance_cm is not None:
         await websocket.send_text(
-            json.dumps({"type": "distance", "cm": last_distance_cm})
+            json.dumps({"type": "distance", "cm": last_distance_cm, "cached": True})
         )
     if last_light_level is not None:
         await websocket.send_text(
-            json.dumps({"type": "light", "level": last_light_level})
+            json.dumps({"type": "light", "level": last_light_level, "cached": True})
         )
     try:
         while True:
