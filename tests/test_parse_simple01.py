@@ -18,14 +18,24 @@ class ParseSignalPinLineTests(unittest.TestCase):
 
 class ParsePotLineTests(unittest.TestCase):
     def test_low_logic(self):
-        self.assertEqual(parse_pot_line("Pot: 1.20 V | Logic: 0"), (1.2, 0.0))
+        self.assertEqual(parse_pot_line("Pot: 1.20 V | Logic: 0"), (1.2, 0.0, None))
 
     def test_undefined_logic(self):
-        self.assertEqual(parse_pot_line("Pot: 2.10 V | Logic: UNDEFINED"), (2.1, 0.5))
+        self.assertEqual(
+            parse_pot_line("Pot: 2.10 V | Logic: UNDEFINED"), (2.1, 0.0, None)
+        )
 
     def test_high_logic_with_pwm(self):
         self.assertEqual(
-            parse_pot_line("Pot: 4.00 V | Logic: 1 | PWM: 200"), (4.0, 1.0)
+            parse_pot_line("Pot: 4.00 V | Logic: 1 | PWM: 200"), (4.0, 1.0, None)
+        )
+
+    def test_full_line_with_current(self):
+        self.assertEqual(
+            parse_pot_line(
+                "Pot: 4.00 V | Logic: 1 | PWM: 200 | Shunt: 0.123 V | Current: 12.3 mA"
+            ),
+            (4.0, 1.0, 12.3),
         )
 
     def test_invalid_line_returns_none(self):
