@@ -196,6 +196,7 @@
       <nav>
         <a href="/" class="active">Keypad</a>
         <a href="/sensors">Sensors</a>
+        <a href="/digital">Digital Signal</a>
       </nav>
     </aside>
 
@@ -236,6 +237,8 @@
     const notificationEl = document.getElementById("notification");
     let ws = null;
     let reconnectTimer = null;
+    let arduinoOnline = false;
+    let serialStatusKnown = false;
 
     function showNotification(message, type = "error") {
       notificationEl.textContent = message;
@@ -246,6 +249,7 @@
     function setStatus(connected) {
       statusEl.textContent = connected ? "Online" : "Offline";
       statusEl.className = `app-status ${connected ? "online" : "offline"}`;
+      arduinoOnline = connected;
     }
 
     async function pollStatus() {
@@ -279,10 +283,12 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === "serial_status") {
+            const wasOnline = arduinoOnline;
             setStatus(data.connected);
-            if (data.connected) {
+            if (serialStatusKnown && data.connected && !wasOnline) {
               showNotification("Arduino reconnected", "success");
             }
+            serialStatusKnown = true;
             return;
           }
           if (data.key) appendKey(data.key);
