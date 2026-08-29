@@ -219,6 +219,13 @@
             <div class="distance-unit">units</div>
           </div>
         </div>
+        <div class="card">
+          <div class="card-header">Temperature</div>
+          <div class="card-body">
+            <div id="temperatureValue" class="distance-value">—</div>
+            <div class="distance-unit">°C</div>
+          </div>
+        </div>
       </div>
       </main>
     </div>
@@ -231,6 +238,7 @@
 
     const distanceValueEl = document.getElementById("distanceValue");
     const lightValueEl = document.getElementById("lightValue");
+    const temperatureValueEl = document.getElementById("temperatureValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
     const sensors = {
@@ -379,6 +387,10 @@
       lightValueEl.textContent = String(Math.round(level));
     }
 
+    function setTemperature(c) {
+      temperatureValueEl.textContent = Number(c).toFixed(1);
+    }
+
     async function pollStatus() {
       try {
         const res = await fetch("/api/status");
@@ -389,6 +401,9 @@
         }
         if (data.last_light_level != null) {
           setLight(data.last_light_level);
+        }
+        if (data.last_temperature_c != null) {
+          setTemperature(data.last_temperature_c);
         }
       } catch {
         setStatus(false);
@@ -418,6 +433,9 @@
           if (data.type === "light" && data.level != null) {
             setLight(data.level);
             applySensorReading("light", data.level, !data.cached);
+          }
+          if (data.type === "temperature" && data.c != null) {
+            setTemperature(data.c);
           }
         } catch {
           showNotification("Invalid message from server");

@@ -2,15 +2,25 @@
 name: /stop-app
 id: stop-app
 category: Workflow
-description: Stop the uvicorn server and release COM8
+description: Stop uvicorn and release COM8 for Arduino
 ---
 
-Stops the uvicorn server and release COM8
+Stop the FastAPI uvicorn server and release **COM8**.
 
-Read and follow `.cursor/skills/stop-app/SKILL.md`.
+## Steps
 
-**Steps**
+1. Run from the project root:
 
-1. Run `.cursor/skills/stop-app/scripts/stop-app.ps1` from the project root.
-2. Confirm no `uvicorn main:app` process is running.
-3. Tell the user COM8 is released (or that no server was running).
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .cursor/skills/stop-app/scripts/stop-app.ps1
+   ```
+
+2. Confirm port **8000** is free and report the result to the user.
+
+3. If COM8 may still be locked, remind the user to close **Arduino Serial Monitor**.
+
+## Guardrails
+
+- Do not restart uvicorn unless the user asks.
+- `COM_PORT` is **COM8** in `main.py`.
+- For full workflow details, follow `.cursor/skills/stop-app/SKILL.md`.

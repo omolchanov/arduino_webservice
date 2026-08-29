@@ -1,10 +1,10 @@
 #define TRIG_PIN 9
 #define ECHO_PIN 10
 #define LDR_PIN A0
+#define LM35_PIN A3
 
 void setup() {
   Serial.begin(9600);
-
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 }
@@ -12,17 +12,15 @@ void setup() {
 void loop() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
-
   digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
-
   digitalWrite(TRIG_PIN, LOW);
 
   long duration = pulseIn(ECHO_PIN, HIGH);
   float distance = duration * 0.0343 / 2;
 
   Serial.print("Distance: ");
-  Serial.print(distance);
+  Serial.print(distance, 1);
   Serial.println(" cm");
 
   int light = analogRead(LDR_PIN);
@@ -31,5 +29,14 @@ void loop() {
   Serial.print("Light: ");
   Serial.println(light);
 
-  delay(5000);
+  int lm35Value = analogRead(LM35_PIN);
+  float voltage = lm35Value * 5.0 / 1023.0;
+  float temperature = voltage * 100.0 / 2;
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature, 1);
+  Serial.println(" C");
+
+  Serial.println("--------------------");
+  delay(1000);
 }

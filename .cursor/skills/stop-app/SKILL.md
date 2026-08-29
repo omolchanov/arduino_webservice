@@ -1,38 +1,42 @@
 ---
 name: stop-app
-description: Stops the uvicorn FastAPI server for this Arduino project and releases COM8. Use when the user runs /stop-app, asks to stop the server, shut down uvicorn, or release COM8 before uploading a sketch or restarting the app.
+description: >-
+  Stops the FastAPI uvicorn server and releases COM8 for the Arduino keypad
+  project. Use when the user runs /stop-app, asks to stop the server, stop
+  uvicorn, shut down the app, or release COM8 before uploading a sketch or
+  opening Serial Monitor.
+disable-model-invocation: true
 ---
 
 # Stop App
 
-Stops the uvicorn server and release COM8
+Stops `uvicorn main:app` and releases **COM8** so the Arduino port is free.
 
 ## When to use
 
-- User runs `/stop-app`
-- Before restarting uvicorn (`uvicorn main:app --reload`)
-- Before opening Arduino Serial Monitor or uploading a sketch
+- User invokes `/stop-app`
+- User asks to stop the server, stop uvicorn, or release COM8
+- Before restarting the server or uploading an Arduino sketch
 
 ## Steps
 
-1. Check the terminals folder for a running `uvicorn main:app` background shell and note its PID.
-2. Run the stop script from the project root:
+1. **Run the stop script** from the project root:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .cursor/skills/stop-app/scripts/stop-app.ps1
-```
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .cursor/skills/stop-app/scripts/stop-app.ps1
+   ```
 
-Or inline (same behavior):
+2. **Confirm** output shows port **8000** is free and COM8 should be released.
 
-```powershell
-Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.CommandLine -match 'main:app' -or $_.CommandLine -match 'multiprocessing\.spawn.*spawn_main' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Seconds 2
-```
-
-3. Confirm no `uvicorn main:app` process remains.
-4. Report whether the server was stopped or was not running.
+3. If COM8 is still busy, remind the user to close **Arduino Serial Monitor** or any other app using COM8.
 
 ## Notes
 
-- `COM_PORT` is `COM8` in `main.py`; stopping uvicorn closes the serial handle.
-- Match only `uvicorn main:app` — do not kill unrelated Python processes.
+- `COM_PORT` is **COM8** in `main.py` (see `AGENTS.md`).
+- Killing uvicorn ends the serial thread via FastAPI lifespan shutdown; the script waits briefly for the handle to release.
+- Do not start uvicorn again unless the user asks.
+
+## Failure handling
+
+- If the script exits with code **1**, port 8000 may still be in use — report which PIDs remain and retry once.
+- If COM8 stays locked after a clean stop, the blocker is usually Serial Monitor, not uvicorn.
