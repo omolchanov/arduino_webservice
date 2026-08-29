@@ -141,7 +141,7 @@
     .value-widgets-row {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 1rem;
     }
 
@@ -230,23 +230,11 @@
       color: #f97316;
     }
 
-    .logic-current {
-      display: flex;
-      align-items: baseline;
-      justify-content: center;
-      gap: 0.75rem;
-    }
-
     .logic-value {
       font-size: 3.5rem;
       font-weight: 700;
       line-height: 1;
       color: #fbbf24;
-    }
-
-    .logic-label {
-      font-size: 1rem;
-      color: #888;
     }
 
     .chart-wrap {
@@ -331,6 +319,15 @@
               <div class="distance-unit">Ω</div>
             </div>
           </div>
+          <div class="card">
+            <div class="card-header">
+              Logic signal LED <span id="logicSignalDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="logicSignalValue" class="logic-value">—</div>
+              <div class="distance-unit">signal</div>
+            </div>
+          </div>
           </div>
           <div class="card card-wide">
             <div class="card-header">Potentiometer history, V</div>
@@ -365,14 +362,8 @@
             </div>
           </div>
           <div class="card card-wide">
-            <div class="card-header">
-              Logic signal LED <span id="logicDot" class="sensor-status-dot" aria-hidden="true"></span>
-            </div>
+            <div class="card-header">Logic signal LED history</div>
             <div class="card-body">
-              <div class="logic-current">
-                <div id="logicValue" class="logic-value">—</div>
-                <div id="logicLabel" class="logic-label"></div>
-              </div>
               <div class="chart-wrap">
                 <canvas id="logicChart"></canvas>
               </div>
@@ -396,9 +387,7 @@
     const POT_ZONE_HIGH_V = 3.0;
     const SENSOR_PENDING_MS = 10000;
 
-    const logicValueEl = document.getElementById("logicValue");
-    const logicLabelEl = document.getElementById("logicLabel");
-    const logicDotEl = document.getElementById("logicDot");
+    const logicSignalValueEl = document.getElementById("logicSignalValue");
     const potValueEl = document.getElementById("potValue");
     const detectedValueEl = document.getElementById("detectedValue");
     const currentValueEl = document.getElementById("currentValue");
@@ -425,6 +414,11 @@
       resistance: {
         dotState: "initializing",
         dotEl: document.getElementById("resistanceDot"),
+        initTimeoutId: null,
+      },
+      logic: {
+        dotState: "initializing",
+        dotEl: document.getElementById("logicSignalDot"),
         initTimeoutId: null,
       },
     };
@@ -481,9 +475,6 @@
     let reconnectTimer = null;
     let arduinoOnline = false;
     let serialStatusKnown = false;
-    let logicDotState = "initializing";
-    let logicPendingTimer = null;
-    let logicInitTimeoutId = null;
     let lastDetectedValue = detectedHistory.length
       ? detectedHistory[detectedHistory.length - 1].v
       : null;
@@ -492,11 +483,6 @@
       notificationEl.textContent = message;
       notificationEl.className = `notification show ${type}`;
       setTimeout(() => notificationEl.classList.remove("show"), 3000);
-    }
-
-    function setLogicDot(state) {
-      logicDotState = state;
-      logicDotEl.className = `sensor-status-dot ${state}`;
     }
 
     function setWidgetDot(widgetId, state) {
@@ -549,54 +535,20 @@
       startWidgetInitTimeouts();
     }
 
-    function clearLogicTimers() {
-      if (logicPendingTimer) {
-        clearTimeout(logicPendingTimer);
-        logicPendingTimer = null;
-      }
-      if (logicInitTimeoutId) {
-        clearTimeout(logicInitTimeoutId);
-        logicInitTimeoutId = null;
-      }
-    }
-
-    function startLogicInitTimeout() {
-      clearLogicTimers();
-      logicInitTimeoutId = setTimeout(() => {
-        if (arduinoOnline && logicDotState === "initializing") {
-          setLogicDot("error");
-        }
-      }, SENSOR_PENDING_MS);
-    }
-
-    function applyLogicReading(value, live) {
-      if (!arduinoOnline || !live) return;
-      if (logicInitTimeoutId) {
-        clearTimeout(logicInitTimeoutId);
-        logicInitTimeoutId = null;
-      }
-      setLogicDot("ok");
-    }
-
     function setStatus(connected) {
       statusEl.textContent = connected ? "Online" : "Offline";
       statusEl.className = `app-status ${connected ? "online" : "offline"}`;
       if (connected === arduinoOnline) return;
       arduinoOnline = connected;
-      clearLogicTimers();
       if (connected) {
-        setLogicDot("initializing");
-        startLogicInitTimeout();
         onWidgetsOnline();
       } else {
-        setLogicDot("error");
         onWidgetsOffline();
       }
     }
 
     function setLogic(value) {
-      logicValueEl.textContent = String(value);
-      logicLabelEl.textContent = "generated";
+      logicSignalValueEl.textContent = String(value);
     }
 
     function setPotentiometer(v) {
@@ -793,7 +745,7 @@
     function handleLogic(value, live) {
       setLogic(value);
       appendHistoryPoint(logicHistory, LOGIC_STORAGE_KEY, logicChart, value);
-      applyLogicReading(value, live);
+      applyWidgetReading("logic", live);
     }
 
     function handlePotentiometer(v, live) {
@@ -845,7 +797,7 @@
         const res = await fetch("/api/status");
         const data = await res.json();
         setStatus(data.serial_connected);
-        if (data.last_logic_value != null && logicValueEl.textContent === "—") {
+        if (data.last_logic_value != null && logicSignalValueEl.textContent === "—") {
           handleLogic(data.last_logic_value, false);
         }
         if (data.last_potentiometer_v != null && potValueEl.textContent === "—") {
