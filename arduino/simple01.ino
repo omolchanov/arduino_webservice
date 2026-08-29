@@ -1,67 +1,133 @@
 #define SIGNAL_PIN 8
 #define POT_PIN A0
-#define LED_LOGIC_PIN 9
+#define LED_PIN 9
 
 void setup() {
-
   pinMode(SIGNAL_PIN, OUTPUT);
-  pinMode(LED_LOGIC_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
 
   Serial.begin(9600);
 }
 
 void loop() {
 
-  // Считываем потенциометр
-  int analogValue = analogRead(POT_PIN);
-
-  // Переводим значение ADC в напряжение
-  float voltage = analogValue * 5.0 / 1023.0;
-
-  // Определяем логическое состояние
-  // Пока используем середину диапазона как порог
-  bool logicState = voltage >= 2.5;
-
-  // -------------------------
-  // Генерируем логическую 1
-  // -------------------------
+  // ==========================================
+  // ЛОГИЧЕСКАЯ 1 НА SIGNAL_PIN
+  // ==========================================
 
   digitalWrite(SIGNAL_PIN, HIGH);
 
-  Serial.print("Generated: 1 | ");
-  Serial.print("Potentiometer: ");
-  Serial.print(voltage, 2);
-  Serial.print(" V | ");
+  Serial.println("SIGNAL_PIN: Logic 1 (HIGH)");
 
-  if (logicState) {
-    Serial.println("Detected: 1");
-    digitalWrite(LED_LOGIC_PIN, HIGH);
-  } else {
-    Serial.println("Detected: 0");
-    digitalWrite(LED_LOGIC_PIN, LOW);
+  // В течение этой секунды постоянно
+  // контролируем потенциометр
+  unsigned long startTime = millis();
+
+  while (millis() - startTime < 1000) {
+
+    int analogValue = analogRead(POT_PIN);
+    float voltage = analogValue * 5.0 / 1023.0;
+
+    if (voltage < 1.5) {
+
+      // LOW
+      analogWrite(LED_PIN, 0);
+
+      Serial.print("Pot: ");
+      Serial.print(voltage, 2);
+      Serial.println(" V | Logic: 0");
+
+    }
+    else if (voltage < 3.0) {
+
+      // НЕОПРЕДЕЛЁННАЯ ЗОНА
+      // Мигание реализуем через millis()
+      static bool ledState = false;
+      static unsigned long lastBlink = 0;
+
+      if (millis() - lastBlink >= 100) {
+        lastBlink = millis();
+        ledState = !ledState;
+      }
+
+      digitalWrite(LED_PIN, ledState);
+
+      Serial.print("Pot: ");
+      Serial.print(voltage, 2);
+      Serial.println(" V | Logic: UNDEFINED");
+
+    }
+    else {
+
+      // HIGH
+      int brightness = map(analogValue, 614, 1023, 0, 255);
+
+      analogWrite(LED_PIN, brightness);
+
+      Serial.print("Pot: ");
+      Serial.print(voltage, 2);
+      Serial.print(" V | Logic: 1 | PWM: ");
+      Serial.println(brightness);
+    }
+
+    delay(1000);
   }
 
-  delay(1000);
 
-
-  // -------------------------
-  // Генерируем логический 0
-  // -------------------------
+  // ==========================================
+  // ЛОГИЧЕСКИЙ 0 НА SIGNAL_PIN
+  // ==========================================
 
   digitalWrite(SIGNAL_PIN, LOW);
 
-  Serial.print("Generated: 0 | ");
-  Serial.print("Potentiometer: ");
-  Serial.print(voltage, 2);
-  Serial.print(" V | ");
+  Serial.println("SIGNAL_PIN: Logic 0 (LOW)");
 
-  if (logicState) {
-    Serial.println("Detected: 1");
-    digitalWrite(LED_LOGIC_PIN, HIGH);
-  } else {
-    Serial.println("Detected: 0");
-    digitalWrite(LED_LOGIC_PIN, LOW);
+  // Снова контролируем потенциометр
+  startTime = millis();
+
+  while (millis() - startTime < 1000) {
+
+    int analogValue = analogRead(POT_PIN);
+    float voltage = analogValue * 5.0 / 1023.0;
+
+    if (voltage < 1.5) {
+
+      analogWrite(LED_PIN, 0);
+
+      Serial.print("Pot: ");
+      Serial.print(voltage, 2);
+      Serial.println(" V | Logic: 0");
+
+    }
+    else if (voltage < 3.0) {
+
+      static bool ledState = false;
+      static unsigned long lastBlink = 0;
+
+      if (millis() - lastBlink >= 100) {
+        lastBlink = millis();
+        ledState = !ledState;
+      }
+
+      digitalWrite(LED_PIN, ledState);
+
+      Serial.print("Pot: ");
+      Serial.print(voltage, 2);
+      Serial.println(" V | Logic: UNDEFINED");
+
+    }
+    else {
+
+      int brightness = map(analogValue, 614, 1023, 0, 255);
+
+      analogWrite(LED_PIN, brightness);
+
+      Serial.print("Pot: ");
+      Serial.print(voltage, 2);
+      Serial.print(" V | Logic: 1 | PWM: ");
+      Serial.println(brightness);
+    }
+
+    delay(1000);
   }
-
-  delay(1000);
 }

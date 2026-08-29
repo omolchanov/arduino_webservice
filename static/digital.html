@@ -328,8 +328,9 @@
     const WINDOW_SEC = 120;
     const LOGIC_STORAGE_KEY = "digital-logic-led-history";
     const POT_STORAGE_KEY = "digital-pot-history";
-    const POT_SWITCH_STORAGE_KEY = "digital-pot-switch-markers";
     const DETECTED_STORAGE_KEY = "digital-detected-history";
+    const POT_ZONE_LOW_V = 1.5;
+    const POT_ZONE_HIGH_V = 3.0;
     const SENSOR_PENDING_MS = 10000;
 
     const logicValueEl = document.getElementById("logicValue");
@@ -389,17 +390,9 @@
       POT_STORAGE_KEY,
       (p) => typeof p.v === "number" && p.v >= 0 && p.v <= 5
     );
-    const potSwitchMarkers = loadHistory(
-      POT_SWITCH_STORAGE_KEY,
-      (p) =>
-        typeof p.v === "number" &&
-        p.v >= 0 &&
-        p.v <= 5 &&
-        (p.to === 0 || p.to === 1)
-    );
     const detectedHistory = loadHistory(
       DETECTED_STORAGE_KEY,
-      (p) => p.v === 0 || p.v === 1
+      (p) => p.v === 0 || p.v === 0.5 || p.v === 1
     );
     let ws = null;
     let reconnectTimer = null;
@@ -528,7 +521,8 @@
     }
 
     function setDetected(value) {
-      detectedValueEl.textContent = String(value);
+      const v = Number(value);
+      detectedValueEl.textContent = v === 0.5 ? "0.5" : String(v);
     }
 
     function createLineChart(canvasId, label, borderColor, backgroundColor, yScale) {
@@ -594,27 +588,35 @@
       "rgba(96, 165, 250, 0.1)",
       { min: 0, max: 5, stepSize: 1 }
     );
+    potChart.data.datasets[0].order = 1;
+    potChart.data.datasets[0].fill = false;
     potChart.data.datasets.push({
-      label: "Detected → 1",
+      label: `${POT_ZONE_LOW_V} V`,
       parsing: false,
-      data: [],
-      showLine: false,
-      pointRadius: 7,
-      pointBackgroundColor: "#f87171",
-      pointBorderColor: "#fca5a5",
-      pointBorderWidth: 1,
-      borderWidth: 0,
+      data: [
+        { x: 0, y: POT_ZONE_LOW_V },
+        { x: WINDOW_SEC, y: POT_ZONE_LOW_V },
+      ],
+      borderColor: "#4ade80",
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      fill: false,
+      order: 0,
     });
     potChart.data.datasets.push({
-      label: "Detected → 0",
+      label: `${POT_ZONE_HIGH_V} V`,
       parsing: false,
-      data: [],
-      showLine: false,
-      pointRadius: 7,
-      pointBackgroundColor: "#4ade80",
-      pointBorderColor: "#86efac",
-      pointBorderWidth: 1,
-      borderWidth: 0,
+      data: [
+        { x: 0, y: POT_ZONE_HIGH_V },
+        { x: WINDOW_SEC, y: POT_ZONE_HIGH_V },
+      ],
+      borderColor: "#f87171",
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      fill: false,
+      order: 0,
     });
 
     const detectedChart = createLineChart(
@@ -622,7 +624,7 @@
       "Detected logic LED",
       "#a78bfa",
       "rgba(167, 139, 250, 0.1)",
-      { min: 0, max: 1, stepSize: 1, stepped: true }
+      { min: 0, max: 1, stepSize: 0.5, stepped: true }
     );
 
     function renderSeriesChart(chart, history) {
@@ -645,21 +647,13 @@
 
     function renderPotChart() {
       pruneHistory(potHistory);
-      pruneHistory(potSwitchMarkers);
       const now = Date.now();
       const windowStart = now - WINDOW_SEC * 1000;
-      const toXY = (p) => ({
+
+      potChart.data.datasets[0].data = potHistory.map((p) => ({
         x: (p.ts - windowStart) / 1000,
         y: p.v,
-      });
-
-      potChart.data.datasets[0].data = potHistory.map(toXY);
-      potChart.data.datasets[1].data = potSwitchMarkers
-        .filter((m) => m.to === 1)
-        .map(toXY);
-      potChart.data.datasets[2].data = potSwitchMarkers
-        .filter((m) => m.to === 0)
-        .map(toXY);
+      }));
       potChart.update();
     }
 
@@ -674,16 +668,6 @@
       potHistory.push({ ts: Date.now(), v: value });
       pruneHistory(potHistory);
       saveHistory(POT_STORAGE_KEY, potHistory);
-      renderPotChart();
-    }
-
-    function recordDetectedSwitch(newValue) {
-      if (lastDetectedValue === null || lastDetectedValue === newValue) return;
-      if (!potHistory.length) return;
-      const potPoint = potHistory[potHistory.length - 1];
-      potSwitchMarkers.push({ ts: potPoint.ts, v: potPoint.v, to: newValue });
-      pruneHistory(potSwitchMarkers);
-      saveHistory(POT_SWITCH_STORAGE_KEY, potSwitchMarkers);
       renderPotChart();
     }
 
@@ -713,7 +697,6 @@
     function handleDetected(value, live) {
       const v = Number(value);
       setDetected(v);
-      recordDetectedSwitch(v);
       lastDetectedValue = v;
       appendHistoryPoint(detectedHistory, DETECTED_STORAGE_KEY, detectedChart, v);
       applyWidgetReading("detected", live);
@@ -722,10 +705,7 @@
     function clearGraph() {
       clearSeries(logicHistory, LOGIC_STORAGE_KEY, logicChart);
       clearSeries(potHistory, POT_STORAGE_KEY, potChart);
-      potSwitchMarkers.length = 0;
-      localStorage.removeItem(POT_SWITCH_STORAGE_KEY);
       lastDetectedValue = null;
-      renderPotChart();
       clearSeries(detectedHistory, DETECTED_STORAGE_KEY, detectedChart);
       showNotification("Graphs cleared", "success");
     }
@@ -742,7 +722,7 @@
           setPotentiometer(data.last_potentiometer_v);
         }
         if (data.last_detected_value != null && detectedValueEl.textContent === "—") {
-          setDetected(data.last_detected_value);
+          handleDetected(data.last_detected_value, false);
         }
       } catch {
         setStatus(false);
@@ -815,7 +795,6 @@
     window.addEventListener("beforeunload", () => {
       saveHistory(LOGIC_STORAGE_KEY, logicHistory);
       saveHistory(POT_STORAGE_KEY, potHistory);
-      saveHistory(POT_SWITCH_STORAGE_KEY, potSwitchMarkers);
       saveHistory(DETECTED_STORAGE_KEY, detectedHistory);
     });
   </script>
