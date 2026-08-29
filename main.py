@@ -24,7 +24,9 @@ IGNORED_LINES = {"Keypad ready"}
 DISTANCE_PATTERN = re.compile(r"^Distance:\s*([\d.]+)\s*cm$")
 LIGHT_PATTERN = re.compile(r"^Light:\s*(\d+)$")
 TEMPERATURE_PATTERN = re.compile(r"^Temperature:\s*([\d.]+)\s*C$")
-LOGIC_PATTERN = re.compile(r"^Generated:\s*([01])\s*\|")
+SIMPLE01_PATTERN = re.compile(
+    r"^Generated:\s*([01])\s*\|\s*Potentiometer:\s*([\d.]+)\s*V\s*\|\s*Detected:\s*([01])$"
+)
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
@@ -34,6 +36,8 @@ last_distance_cm: float | None = None
 last_light_level: int | None = None
 last_temperature_c: float | None = None
 last_logic_value: int | None = None
+last_potentiometer_v: float | None = None
+last_detected_value: int | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -76,11 +80,11 @@ def parse_temperature_line(line: str) -> float | None:
     return float(match.group(1))
 
 
-def parse_logic_line(line: str) -> int | None:
-    match = LOGIC_PATTERN.match(line.strip())
+def parse_simple01_line(line: str) -> tuple[int, float, int] | None:
+    match = SIMPLE01_PATTERN.match(line.strip())
     if not match:
         return None
-    return int(match.group(1))
+    return int(match.group(1)), float(match.group(2)), int(match.group(3))
 
 
 async def broadcast_message(message: str) -> None:
@@ -113,6 +117,14 @@ async def broadcast_temperature(c: float) -> None:
 
 async def broadcast_logic(value: int) -> None:
     await broadcast_message(json.dumps({"type": "logic", "value": value}))
+
+
+async def broadcast_potentiometer(v: float) -> None:
+    await broadcast_message(json.dumps({"type": "potentiometer", "v": v}))
+
+
+async def broadcast_detected(value: int) -> None:
+    await broadcast_message(json.dumps({"type": "detected", "value": value}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -160,6 +172,20 @@ def notify_logic(value: int) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_logic(value), event_loop)
 
 
+def notify_potentiometer(v: float) -> None:
+    global last_potentiometer_v
+    last_potentiometer_v = v
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_potentiometer(v), event_loop)
+
+
+def notify_detected(value: int) -> None:
+    global last_detected_value
+    last_detected_value = value
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_detected(value), event_loop)
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -194,10 +220,19 @@ def read_serial(port: serial.Serial) -> None:
             logger.info("Temperature: %.2f C (clients: %d)", temperature, len(clients))
             notify_temperature(temperature)
             continue
-        logic = parse_logic_line(line)
-        if logic is not None:
-            logger.info("Logic: %d (clients: %d)", logic, len(clients))
-            notify_logic(logic)
+        simple01 = parse_simple01_line(line)
+        if simple01 is not None:
+            generated, pot_v, detected = simple01
+            logger.info(
+                "Simple01: gen=%d pot=%.2f det=%d (clients: %d)",
+                generated,
+                pot_v,
+                detected,
+                len(clients),
+            )
+            notify_logic(generated)
+            notify_potentiometer(pot_v)
+            notify_detected(detected)
             continue
         key = parse_key_line(line)
         if key:
@@ -301,6 +336,8 @@ async def status():
         "last_light_level": last_light_level,
         "last_temperature_c": last_temperature_c,
         "last_logic_value": last_logic_value,
+        "last_potentiometer_v": last_potentiometer_v,
+        "last_detected_value": last_detected_value,
     }
 
 
@@ -334,6 +371,18 @@ async def websocket_endpoint(websocket: WebSocket):
     if last_logic_value is not None:
         await websocket.send_text(
             json.dumps({"type": "logic", "value": last_logic_value, "cached": True})
+        )
+    if last_potentiometer_v is not None:
+        await websocket.send_text(
+            json.dumps(
+                {"type": "potentiometer", "v": last_potentiometer_v, "cached": True}
+            )
+        )
+    if last_detected_value is not None:
+        await websocket.send_text(
+            json.dumps(
+                {"type": "detected", "value": last_detected_value, "cached": True}
+            )
         )
     try:
         while True:

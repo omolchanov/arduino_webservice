@@ -180,6 +180,31 @@
       gap: 1rem;
     }
 
+    .card-body-value {
+      justify-content: center;
+      align-items: center;
+    }
+
+    .distance-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #60a5fa;
+    }
+
+    .distance-unit {
+      font-size: 1rem;
+      color: #888;
+      margin-top: 0.5rem;
+    }
+
+    .detected-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #a78bfa;
+    }
+
     .logic-current {
       display: flex;
       align-items: baseline;
@@ -244,6 +269,40 @@
         </div>
 
         <div class="dashboard">
+          <div class="card">
+            <div class="card-header">
+              Potentiometer <span id="potDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="potValue" class="distance-value">—</div>
+              <div class="distance-unit">V</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              Detected logic LED <span id="detectedDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="detectedValue" class="detected-value">—</div>
+              <div class="distance-unit">detected</div>
+            </div>
+          </div>
+          <div class="card card-wide">
+            <div class="card-header">Potentiometer history</div>
+            <div class="card-body">
+              <div class="chart-wrap">
+                <canvas id="potChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="card card-wide">
+            <div class="card-header">Detected logic LED history</div>
+            <div class="card-body">
+              <div class="chart-wrap">
+                <canvas id="detectedChart"></canvas>
+              </div>
+            </div>
+          </div>
           <div class="card card-wide">
             <div class="card-header">
               Logic signal LED <span id="logicDot" class="sensor-status-dot" aria-hidden="true"></span>
@@ -267,46 +326,81 @@
 
   <script>
     const WINDOW_SEC = 120;
-    const STORAGE_KEY = "digital-logic-led-history";
+    const LOGIC_STORAGE_KEY = "digital-logic-led-history";
+    const POT_STORAGE_KEY = "digital-pot-history";
+    const POT_SWITCH_STORAGE_KEY = "digital-pot-switch-markers";
+    const DETECTED_STORAGE_KEY = "digital-detected-history";
     const SENSOR_PENDING_MS = 10000;
 
     const logicValueEl = document.getElementById("logicValue");
     const logicLabelEl = document.getElementById("logicLabel");
     const logicDotEl = document.getElementById("logicDot");
+    const potValueEl = document.getElementById("potValue");
+    const detectedValueEl = document.getElementById("detectedValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
 
-    function loadHistory() {
+    const widgets = {
+      pot: {
+        dotState: "initializing",
+        dotEl: document.getElementById("potDot"),
+        initTimeoutId: null,
+      },
+      detected: {
+        dotState: "initializing",
+        dotEl: document.getElementById("detectedDot"),
+        initTimeoutId: null,
+      },
+    };
+
+    function loadHistory(storageKey, validatePoint) {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(storageKey);
         if (!raw) return [];
         const data = JSON.parse(raw);
         if (!Array.isArray(data.points)) return [];
         const cutoff = Date.now() - WINDOW_SEC * 1000;
-        return data.points.filter(
-          (p) => p.ts && p.ts >= cutoff && (p.v === 0 || p.v === 1)
-        );
+        return data.points.filter((p) => p.ts && p.ts >= cutoff && validatePoint(p));
       } catch {
         return [];
       }
     }
 
-    function pruneHistory() {
+    function pruneHistory(history) {
       const cutoff = Date.now() - WINDOW_SEC * 1000;
       while (history.length && history[0].ts < cutoff) {
         history.shift();
       }
     }
 
-    function saveHistory() {
+    function saveHistory(storageKey, history) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ points: history }));
+        localStorage.setItem(storageKey, JSON.stringify({ points: history }));
       } catch {
         showNotification("Could not save graph history");
       }
     }
 
-    const history = loadHistory();
+    const logicHistory = loadHistory(
+      LOGIC_STORAGE_KEY,
+      (p) => p.v === 0 || p.v === 1
+    );
+    const potHistory = loadHistory(
+      POT_STORAGE_KEY,
+      (p) => typeof p.v === "number" && p.v >= 0 && p.v <= 5
+    );
+    const potSwitchMarkers = loadHistory(
+      POT_SWITCH_STORAGE_KEY,
+      (p) =>
+        typeof p.v === "number" &&
+        p.v >= 0 &&
+        p.v <= 5 &&
+        (p.to === 0 || p.to === 1)
+    );
+    const detectedHistory = loadHistory(
+      DETECTED_STORAGE_KEY,
+      (p) => p.v === 0 || p.v === 1
+    );
     let ws = null;
     let reconnectTimer = null;
     let arduinoOnline = false;
@@ -314,6 +408,9 @@
     let logicDotState = "initializing";
     let logicPendingTimer = null;
     let logicInitTimeoutId = null;
+    let lastDetectedValue = detectedHistory.length
+      ? detectedHistory[detectedHistory.length - 1].v
+      : null;
 
     function showNotification(message, type = "error") {
       notificationEl.textContent = message;
@@ -324,6 +421,56 @@
     function setLogicDot(state) {
       logicDotState = state;
       logicDotEl.className = `sensor-status-dot ${state}`;
+    }
+
+    function setWidgetDot(widgetId, state) {
+      widgets[widgetId].dotState = state;
+      widgets[widgetId].dotEl.className = `sensor-status-dot ${state}`;
+    }
+
+    function clearWidgetInitTimeout(widgetId) {
+      const widget = widgets[widgetId];
+      if (widget.initTimeoutId) {
+        clearTimeout(widget.initTimeoutId);
+        widget.initTimeoutId = null;
+      }
+    }
+
+    function clearWidgetTimers(widgetId) {
+      clearWidgetInitTimeout(widgetId);
+    }
+
+    function startWidgetInitTimeouts() {
+      for (const [id, widget] of Object.entries(widgets)) {
+        if (widget.dotState !== "initializing") continue;
+        clearWidgetInitTimeout(id);
+        widget.initTimeoutId = setTimeout(() => {
+          if (arduinoOnline && widget.dotState === "initializing") {
+            setWidgetDot(id, "error");
+          }
+        }, SENSOR_PENDING_MS);
+      }
+    }
+
+    function applyWidgetReading(widgetId, live) {
+      if (!arduinoOnline || !live) return;
+      clearWidgetInitTimeout(widgetId);
+      setWidgetDot(widgetId, "ok");
+    }
+
+    function onWidgetsOffline() {
+      for (const id of Object.keys(widgets)) {
+        clearWidgetTimers(id);
+        setWidgetDot(id, "error");
+      }
+    }
+
+    function onWidgetsOnline() {
+      for (const id of Object.keys(widgets)) {
+        clearWidgetTimers(id);
+        setWidgetDot(id, "initializing");
+      }
+      startWidgetInitTimeouts();
     }
 
     function clearLogicTimers() {
@@ -364,8 +511,10 @@
       if (connected) {
         setLogicDot("initializing");
         startLogicInitTimeout();
+        onWidgetsOnline();
       } else {
         setLogicDot("error");
+        onWidgetsOffline();
       }
     }
 
@@ -374,54 +523,110 @@
       logicLabelEl.textContent = "generated";
     }
 
-    const chart = new Chart(document.getElementById("logicChart"), {
-      type: "line",
-      data: {
-        labels: [],
-        datasets: [{
-          label: "Logic signal LED",
-          parsing: false,
-          data: [],
-          borderColor: "#fbbf24",
-          backgroundColor: "rgba(251, 191, 36, 0.1)",
-          stepped: true,
-          fill: true,
-          pointRadius: 0,
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        scales: {
-          x: {
-            type: "linear",
-            min: 0,
-            max: WINDOW_SEC,
-            title: { display: true, text: "Seconds", color: "#888" },
-            ticks: { color: "#888" },
-            grid: { color: "#3a3a42" },
-          },
-          y: {
-            min: 0,
-            max: 1,
-            ticks: {
-              stepSize: 1,
-              color: "#888",
-              callback: (v) => String(v),
+    function setPotentiometer(v) {
+      potValueEl.textContent = Number(v).toFixed(2);
+    }
+
+    function setDetected(value) {
+      detectedValueEl.textContent = String(value);
+    }
+
+    function createLineChart(canvasId, label, borderColor, backgroundColor, yScale) {
+      return new Chart(document.getElementById(canvasId), {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [{
+            label,
+            parsing: false,
+            data: [],
+            borderColor,
+            backgroundColor,
+            stepped: yScale.stepped ?? false,
+            fill: true,
+            pointRadius: 0,
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              type: "linear",
+              min: 0,
+              max: WINDOW_SEC,
+              title: { display: true, text: "Seconds", color: "#888" },
+              ticks: { color: "#888" },
+              grid: { color: "#3a3a42" },
             },
-            grid: { color: "#3a3a42" },
+            y: {
+              min: yScale.min,
+              max: yScale.max,
+              ticks: {
+                stepSize: yScale.stepSize,
+                color: "#888",
+                callback: yScale.tickCallback ?? ((v) => String(v)),
+              },
+              grid: { color: "#3a3a42" },
+            },
+          },
+          plugins: {
+            legend: { display: false },
           },
         },
-        plugins: {
-          legend: { display: false },
-        },
-      },
+      });
+    }
+
+    const logicChart = createLineChart(
+      "logicChart",
+      "Logic signal LED",
+      "#fbbf24",
+      "rgba(251, 191, 36, 0.1)",
+      { min: 0, max: 1, stepSize: 1, stepped: true }
+    );
+
+    const potChart = createLineChart(
+      "potChart",
+      "Potentiometer",
+      "#60a5fa",
+      "rgba(96, 165, 250, 0.1)",
+      { min: 0, max: 5, stepSize: 1 }
+    );
+    potChart.data.datasets.push({
+      label: "Detected → 1",
+      parsing: false,
+      data: [],
+      showLine: false,
+      pointRadius: 7,
+      pointBackgroundColor: "#f87171",
+      pointBorderColor: "#fca5a5",
+      pointBorderWidth: 1,
+      borderWidth: 0,
+    });
+    potChart.data.datasets.push({
+      label: "Detected → 0",
+      parsing: false,
+      data: [],
+      showLine: false,
+      pointRadius: 7,
+      pointBackgroundColor: "#4ade80",
+      pointBorderColor: "#86efac",
+      pointBorderWidth: 1,
+      borderWidth: 0,
     });
 
-    function renderChart() {
-      pruneHistory();
+    const detectedChart = createLineChart(
+      "detectedChart",
+      "Detected logic LED",
+      "#a78bfa",
+      "rgba(167, 139, 250, 0.1)",
+      { min: 0, max: 1, stepSize: 1, stepped: true }
+    );
+
+    function renderSeriesChart(chart, history) {
+      pruneHistory(history);
       const now = Date.now();
       const windowStart = now - WINDOW_SEC * 1000;
 
@@ -438,24 +643,91 @@
       chart.update();
     }
 
-    function clearGraph() {
-      history.length = 0;
-      localStorage.removeItem(STORAGE_KEY);
-      renderChart();
-      showNotification("Graph cleared", "success");
+    function renderPotChart() {
+      pruneHistory(potHistory);
+      pruneHistory(potSwitchMarkers);
+      const now = Date.now();
+      const windowStart = now - WINDOW_SEC * 1000;
+      const toXY = (p) => ({
+        x: (p.ts - windowStart) / 1000,
+        y: p.v,
+      });
+
+      potChart.data.datasets[0].data = potHistory.map(toXY);
+      potChart.data.datasets[1].data = potSwitchMarkers
+        .filter((m) => m.to === 1)
+        .map(toXY);
+      potChart.data.datasets[2].data = potSwitchMarkers
+        .filter((m) => m.to === 0)
+        .map(toXY);
+      potChart.update();
     }
 
-    function appendLogicPoint(value) {
+    function appendHistoryPoint(history, storageKey, chart, value) {
       history.push({ ts: Date.now(), v: value });
-      pruneHistory();
-      saveHistory();
-      renderChart();
+      pruneHistory(history);
+      saveHistory(storageKey, history);
+      renderSeriesChart(chart, history);
+    }
+
+    function appendPotPoint(value) {
+      potHistory.push({ ts: Date.now(), v: value });
+      pruneHistory(potHistory);
+      saveHistory(POT_STORAGE_KEY, potHistory);
+      renderPotChart();
+    }
+
+    function recordDetectedSwitch(newValue) {
+      if (lastDetectedValue === null || lastDetectedValue === newValue) return;
+      if (!potHistory.length) return;
+      const potPoint = potHistory[potHistory.length - 1];
+      potSwitchMarkers.push({ ts: potPoint.ts, v: potPoint.v, to: newValue });
+      pruneHistory(potSwitchMarkers);
+      saveHistory(POT_SWITCH_STORAGE_KEY, potSwitchMarkers);
+      renderPotChart();
+    }
+
+    function clearSeries(history, storageKey, chart) {
+      history.length = 0;
+      localStorage.removeItem(storageKey);
+      if (chart === potChart) {
+        renderPotChart();
+      } else {
+        renderSeriesChart(chart, history);
+      }
     }
 
     function handleLogic(value, live) {
       setLogic(value);
-      appendLogicPoint(value);
+      appendHistoryPoint(logicHistory, LOGIC_STORAGE_KEY, logicChart, value);
       applyLogicReading(value, live);
+    }
+
+    function handlePotentiometer(v, live) {
+      const value = Number(v);
+      setPotentiometer(value);
+      appendPotPoint(value);
+      applyWidgetReading("pot", live);
+    }
+
+    function handleDetected(value, live) {
+      const v = Number(value);
+      setDetected(v);
+      recordDetectedSwitch(v);
+      lastDetectedValue = v;
+      appendHistoryPoint(detectedHistory, DETECTED_STORAGE_KEY, detectedChart, v);
+      applyWidgetReading("detected", live);
+    }
+
+    function clearGraph() {
+      clearSeries(logicHistory, LOGIC_STORAGE_KEY, logicChart);
+      clearSeries(potHistory, POT_STORAGE_KEY, potChart);
+      potSwitchMarkers.length = 0;
+      localStorage.removeItem(POT_SWITCH_STORAGE_KEY);
+      lastDetectedValue = null;
+      renderPotChart();
+      clearSeries(detectedHistory, DETECTED_STORAGE_KEY, detectedChart);
+      showNotification("Graphs cleared", "success");
     }
 
     async function pollStatus() {
@@ -465,6 +737,12 @@
         setStatus(data.serial_connected);
         if (data.last_logic_value != null && logicValueEl.textContent === "—") {
           handleLogic(data.last_logic_value, false);
+        }
+        if (data.last_potentiometer_v != null && potValueEl.textContent === "—") {
+          setPotentiometer(data.last_potentiometer_v);
+        }
+        if (data.last_detected_value != null && detectedValueEl.textContent === "—") {
+          setDetected(data.last_detected_value);
         }
       } catch {
         setStatus(false);
@@ -490,6 +768,12 @@
           if (data.type === "logic" && data.value != null) {
             handleLogic(Number(data.value), !data.cached);
           }
+          if (data.type === "potentiometer" && data.v != null) {
+            handlePotentiometer(data.v, !data.cached);
+          }
+          if (data.type === "detected" && data.value != null) {
+            handleDetected(Number(data.value), !data.cached);
+          }
         } catch {
           showNotification("Invalid message from server");
         }
@@ -512,13 +796,28 @@
 
     document.getElementById("clearGraphBtn").addEventListener("click", clearGraph);
 
-    if (history.length) {
-      const last = history[history.length - 1];
+    if (logicHistory.length) {
+      const last = logicHistory[logicHistory.length - 1];
       setLogic(last.v);
-      renderChart();
+      renderSeriesChart(logicChart, logicHistory);
+    }
+    if (potHistory.length) {
+      const last = potHistory[potHistory.length - 1];
+      setPotentiometer(last.v);
+      renderPotChart();
+    }
+    if (detectedHistory.length) {
+      const last = detectedHistory[detectedHistory.length - 1];
+      setDetected(last.v);
+      renderSeriesChart(detectedChart, detectedHistory);
     }
 
-    window.addEventListener("beforeunload", saveHistory);
+    window.addEventListener("beforeunload", () => {
+      saveHistory(LOGIC_STORAGE_KEY, logicHistory);
+      saveHistory(POT_STORAGE_KEY, potHistory);
+      saveHistory(POT_SWITCH_STORAGE_KEY, potSwitchMarkers);
+      saveHistory(DETECTED_STORAGE_KEY, detectedHistory);
+    });
   </script>
 </body>
 </html>
