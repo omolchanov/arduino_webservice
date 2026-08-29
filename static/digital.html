@@ -205,6 +205,13 @@
       color: #a78bfa;
     }
 
+    .current-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #34d399;
+    }
+
     .logic-current {
       display: flex;
       align-items: baseline;
@@ -287,11 +294,28 @@
               <div class="distance-unit">detected</div>
             </div>
           </div>
+          <div class="card">
+            <div class="card-header">
+              Current <span id="currentDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="currentValue" class="current-value">—</div>
+              <div class="distance-unit">mA</div>
+            </div>
+          </div>
           <div class="card card-wide">
-            <div class="card-header">Potentiometer history</div>
+            <div class="card-header">Potentiometer history, V</div>
             <div class="card-body">
               <div class="chart-wrap">
                 <canvas id="potChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="card card-wide">
+            <div class="card-header">Shunt resistor history, mA</div>
+            <div class="card-body">
+              <div class="chart-wrap">
+                <canvas id="currentChart"></canvas>
               </div>
             </div>
           </div>
@@ -329,6 +353,7 @@
     const LOGIC_STORAGE_KEY = "digital-logic-led-history";
     const POT_STORAGE_KEY = "digital-pot-history";
     const DETECTED_STORAGE_KEY = "digital-detected-history";
+    const CURRENT_STORAGE_KEY = "digital-current-history";
     const POT_ZONE_LOW_V = 1.5;
     const POT_ZONE_HIGH_V = 3.0;
     const SENSOR_PENDING_MS = 10000;
@@ -338,6 +363,7 @@
     const logicDotEl = document.getElementById("logicDot");
     const potValueEl = document.getElementById("potValue");
     const detectedValueEl = document.getElementById("detectedValue");
+    const currentValueEl = document.getElementById("currentValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
 
@@ -350,6 +376,11 @@
       detected: {
         dotState: "initializing",
         dotEl: document.getElementById("detectedDot"),
+        initTimeoutId: null,
+      },
+      current: {
+        dotState: "initializing",
+        dotEl: document.getElementById("currentDot"),
         initTimeoutId: null,
       },
     };
@@ -393,6 +424,10 @@
     const detectedHistory = loadHistory(
       DETECTED_STORAGE_KEY,
       (p) => p.v === 0 || p.v === 0.5 || p.v === 1
+    ).map((p) => ({ ...p, v: p.v === 0.5 ? 0 : p.v }));
+    const currentHistory = loadHistory(
+      CURRENT_STORAGE_KEY,
+      (p) => typeof p.v === "number" && p.v >= 0 && p.v <= 500
     );
     let ws = null;
     let reconnectTimer = null;
@@ -521,8 +556,11 @@
     }
 
     function setDetected(value) {
-      const v = Number(value);
-      detectedValueEl.textContent = v === 0.5 ? "0.5" : String(v);
+      detectedValueEl.textContent = String(Number(value) === 0.5 ? 0 : Number(value));
+    }
+
+    function setCurrent(ma) {
+      currentValueEl.textContent = Number(ma).toFixed(1);
     }
 
     function createLineChart(canvasId, label, borderColor, backgroundColor, yScale) {
@@ -558,6 +596,9 @@
             y: {
               min: yScale.min,
               max: yScale.max,
+              title: yScale.title
+                ? { display: true, text: yScale.title, color: "#888" }
+                : undefined,
               ticks: {
                 stepSize: yScale.stepSize,
                 color: "#888",
@@ -583,10 +624,10 @@
 
     const potChart = createLineChart(
       "potChart",
-      "Potentiometer",
+      "Potentiometer history, V",
       "#60a5fa",
       "rgba(96, 165, 250, 0.1)",
-      { min: 0, max: 5, stepSize: 1 }
+      { min: 0, max: 5, stepSize: 1, title: "V" }
     );
     potChart.data.datasets[0].order = 1;
     potChart.data.datasets[0].fill = false;
@@ -624,7 +665,15 @@
       "Detected logic LED",
       "#a78bfa",
       "rgba(167, 139, 250, 0.1)",
-      { min: 0, max: 1, stepSize: 0.5, stepped: true }
+      { min: 0, max: 1, stepSize: 1, stepped: true }
+    );
+
+    const currentChart = createLineChart(
+      "currentChart",
+      "Shunt resistor history, mA",
+      "#34d399",
+      "rgba(52, 211, 153, 0.1)",
+      { min: 0, max: 500, stepSize: 100, title: "mA" }
     );
 
     function renderSeriesChart(chart, history) {
@@ -695,11 +744,18 @@
     }
 
     function handleDetected(value, live) {
-      const v = Number(value);
+      const v = Number(value) === 0.5 ? 0 : Number(value);
       setDetected(v);
       lastDetectedValue = v;
       appendHistoryPoint(detectedHistory, DETECTED_STORAGE_KEY, detectedChart, v);
       applyWidgetReading("detected", live);
+    }
+
+    function handleCurrent(ma, live) {
+      const value = Number(ma);
+      setCurrent(value);
+      appendHistoryPoint(currentHistory, CURRENT_STORAGE_KEY, currentChart, value);
+      applyWidgetReading("current", live);
     }
 
     function clearGraph() {
@@ -707,6 +763,7 @@
       clearSeries(potHistory, POT_STORAGE_KEY, potChart);
       lastDetectedValue = null;
       clearSeries(detectedHistory, DETECTED_STORAGE_KEY, detectedChart);
+      clearSeries(currentHistory, CURRENT_STORAGE_KEY, currentChart);
       showNotification("Graphs cleared", "success");
     }
 
@@ -723,6 +780,9 @@
         }
         if (data.last_detected_value != null && detectedValueEl.textContent === "—") {
           handleDetected(data.last_detected_value, false);
+        }
+        if (data.last_current_ma != null && currentValueEl.textContent === "—") {
+          setCurrent(data.last_current_ma);
         }
       } catch {
         setStatus(false);
@@ -753,6 +813,9 @@
           }
           if (data.type === "detected" && data.value != null) {
             handleDetected(Number(data.value), !data.cached);
+          }
+          if (data.type === "current" && data.ma != null) {
+            handleCurrent(data.ma, !data.cached);
           }
         } catch {
           showNotification("Invalid message from server");
@@ -791,11 +854,17 @@
       setDetected(last.v);
       renderSeriesChart(detectedChart, detectedHistory);
     }
+    if (currentHistory.length) {
+      const last = currentHistory[currentHistory.length - 1];
+      setCurrent(last.v);
+      renderSeriesChart(currentChart, currentHistory);
+    }
 
     window.addEventListener("beforeunload", () => {
       saveHistory(LOGIC_STORAGE_KEY, logicHistory);
       saveHistory(POT_STORAGE_KEY, potHistory);
       saveHistory(DETECTED_STORAGE_KEY, detectedHistory);
+      saveHistory(CURRENT_STORAGE_KEY, currentHistory);
     });
   </script>
 </body>

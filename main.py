@@ -26,7 +26,10 @@ LIGHT_PATTERN = re.compile(r"^Light:\s*(\d+)$")
 TEMPERATURE_PATTERN = re.compile(r"^Temperature:\s*([\d.]+)\s*C$")
 SIGNAL_PIN_PATTERN = re.compile(r"^SIGNAL_PIN:\s*Logic\s*([01])\s*\(")
 POT_PATTERN = re.compile(
-    r"^Pot:\s*([\d.]+)\s*V\s*\|\s*Logic:\s*(0|UNDEFINED|1)(?:\s*\|\s*PWM:\s*\d+)?$"
+    r"^Pot:\s*([\d.]+)\s*V\s*\|\s*Logic:\s*(0|UNDEFINED|1)"
+    r"(?:\s*\|\s*PWM:\s*\d+)?"
+    r"(?:\s*\|\s*Shunt:\s*[\d.]+\s*V)?"
+    r"(?:\s*\|\s*Current:\s*([\d.]+)\s*mA)?$"
 )
 
 clients: list[WebSocket] = []
@@ -39,6 +42,7 @@ last_temperature_c: float | None = None
 last_logic_value: int | None = None
 last_potentiometer_v: float | None = None
 last_detected_value: float | None = None
+last_current_ma: float | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -88,14 +92,15 @@ def parse_signal_pin_line(line: str) -> int | None:
     return int(match.group(1))
 
 
-def parse_pot_line(line: str) -> tuple[float, float] | None:
+def parse_pot_line(line: str) -> tuple[float, float, float | None] | None:
     match = POT_PATTERN.match(line.strip())
     if not match:
         return None
     voltage = float(match.group(1))
     logic_raw = match.group(2)
-    logic = 0.5 if logic_raw == "UNDEFINED" else float(logic_raw)
-    return voltage, logic
+    logic = 0.0 if logic_raw == "UNDEFINED" else float(logic_raw)
+    current_ma = float(match.group(3)) if match.group(3) is not None else None
+    return voltage, logic, current_ma
 
 
 async def broadcast_message(message: str) -> None:
@@ -136,6 +141,10 @@ async def broadcast_potentiometer(v: float) -> None:
 
 async def broadcast_detected(value: float) -> None:
     await broadcast_message(json.dumps({"type": "detected", "value": value}))
+
+
+async def broadcast_current(ma: float) -> None:
+    await broadcast_message(json.dumps({"type": "current", "ma": ma}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -197,6 +206,13 @@ def notify_detected(value: float) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_detected(value), event_loop)
 
 
+def notify_current(ma: float) -> None:
+    global last_current_ma
+    last_current_ma = ma
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_current(ma), event_loop)
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -238,7 +254,7 @@ def read_serial(port: serial.Serial) -> None:
             continue
         pot = parse_pot_line(line)
         if pot is not None:
-            pot_v, detected = pot
+            pot_v, detected, current_ma = pot
             logger.info(
                 "Pot: %.2f V logic=%s (clients: %d)",
                 pot_v,
@@ -247,6 +263,8 @@ def read_serial(port: serial.Serial) -> None:
             )
             notify_potentiometer(pot_v)
             notify_detected(detected)
+            if current_ma is not None:
+                notify_current(current_ma)
             continue
         key = parse_key_line(line)
         if key:
@@ -352,6 +370,7 @@ async def status():
         "last_logic_value": last_logic_value,
         "last_potentiometer_v": last_potentiometer_v,
         "last_detected_value": last_detected_value,
+        "last_current_ma": last_current_ma,
     }
 
 
@@ -397,6 +416,10 @@ async def websocket_endpoint(websocket: WebSocket):
             json.dumps(
                 {"type": "detected", "value": last_detected_value, "cached": True}
             )
+        )
+    if last_current_ma is not None:
+        await websocket.send_text(
+            json.dumps({"type": "current", "ma": last_current_ma, "cached": True})
         )
     try:
         while True:
