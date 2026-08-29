@@ -138,6 +138,17 @@
       align-items: start;
     }
 
+    .value-widgets-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .value-widgets-row .card {
+      min-width: 0;
+    }
+
     .card {
       background: #222228;
       border: 1px solid #3a3a42;
@@ -212,6 +223,13 @@
       color: #34d399;
     }
 
+    .resistance-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #f97316;
+    }
+
     .logic-current {
       display: flex;
       align-items: baseline;
@@ -276,6 +294,7 @@
         </div>
 
         <div class="dashboard">
+          <div class="value-widgets-row">
           <div class="card">
             <div class="card-header">
               Potentiometer <span id="potDot" class="sensor-status-dot" aria-hidden="true"></span>
@@ -303,6 +322,16 @@
               <div class="distance-unit">mA</div>
             </div>
           </div>
+          <div class="card">
+            <div class="card-header">
+              Resistance <span id="resistanceDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="resistanceValue" class="resistance-value">—</div>
+              <div class="distance-unit">Ω</div>
+            </div>
+          </div>
+          </div>
           <div class="card card-wide">
             <div class="card-header">Potentiometer history, V</div>
             <div class="card-body">
@@ -316,6 +345,14 @@
             <div class="card-body">
               <div class="chart-wrap">
                 <canvas id="currentChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="card card-wide">
+            <div class="card-header">Resistance history, Ω</div>
+            <div class="card-body">
+              <div class="chart-wrap">
+                <canvas id="resistanceChart"></canvas>
               </div>
             </div>
           </div>
@@ -354,6 +391,7 @@
     const POT_STORAGE_KEY = "digital-pot-history";
     const DETECTED_STORAGE_KEY = "digital-detected-history";
     const CURRENT_STORAGE_KEY = "digital-current-history";
+    const RESISTANCE_STORAGE_KEY = "digital-resistance-history";
     const POT_ZONE_LOW_V = 1.5;
     const POT_ZONE_HIGH_V = 3.0;
     const SENSOR_PENDING_MS = 10000;
@@ -364,6 +402,7 @@
     const potValueEl = document.getElementById("potValue");
     const detectedValueEl = document.getElementById("detectedValue");
     const currentValueEl = document.getElementById("currentValue");
+    const resistanceValueEl = document.getElementById("resistanceValue");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
 
@@ -381,6 +420,11 @@
       current: {
         dotState: "initializing",
         dotEl: document.getElementById("currentDot"),
+        initTimeoutId: null,
+      },
+      resistance: {
+        dotState: "initializing",
+        dotEl: document.getElementById("resistanceDot"),
         initTimeoutId: null,
       },
     };
@@ -428,6 +472,10 @@
     const currentHistory = loadHistory(
       CURRENT_STORAGE_KEY,
       (p) => typeof p.v === "number" && p.v >= 0 && p.v <= 500
+    );
+    const resistanceHistory = loadHistory(
+      RESISTANCE_STORAGE_KEY,
+      (p) => typeof p.v === "number" && p.v >= 0 && p.v <= 50
     );
     let ws = null;
     let reconnectTimer = null;
@@ -563,6 +611,10 @@
       currentValueEl.textContent = Number(ma).toFixed(1);
     }
 
+    function setResistance(ohm) {
+      resistanceValueEl.textContent = Number(ohm).toFixed(1);
+    }
+
     function createLineChart(canvasId, label, borderColor, backgroundColor, yScale) {
       return new Chart(document.getElementById(canvasId), {
         type: "line",
@@ -676,6 +728,14 @@
       { min: 0, max: 500, stepSize: 100, title: "mA" }
     );
 
+    const resistanceChart = createLineChart(
+      "resistanceChart",
+      "Resistance history, Ω",
+      "#f97316",
+      "rgba(249, 115, 22, 0.1)",
+      { min: 0, max: 50, stepSize: 10, title: "Ω" }
+    );
+
     function renderSeriesChart(chart, history) {
       pruneHistory(history);
       const now = Date.now();
@@ -758,12 +818,25 @@
       applyWidgetReading("current", live);
     }
 
+    function handleResistance(ohm, live) {
+      const value = Number(ohm);
+      setResistance(value);
+      appendHistoryPoint(
+        resistanceHistory,
+        RESISTANCE_STORAGE_KEY,
+        resistanceChart,
+        value
+      );
+      applyWidgetReading("resistance", live);
+    }
+
     function clearGraph() {
       clearSeries(logicHistory, LOGIC_STORAGE_KEY, logicChart);
       clearSeries(potHistory, POT_STORAGE_KEY, potChart);
       lastDetectedValue = null;
       clearSeries(detectedHistory, DETECTED_STORAGE_KEY, detectedChart);
       clearSeries(currentHistory, CURRENT_STORAGE_KEY, currentChart);
+      clearSeries(resistanceHistory, RESISTANCE_STORAGE_KEY, resistanceChart);
       showNotification("Graphs cleared", "success");
     }
 
@@ -783,6 +856,12 @@
         }
         if (data.last_current_ma != null && currentValueEl.textContent === "—") {
           setCurrent(data.last_current_ma);
+        }
+        if (
+          data.last_led_resistance_ohm != null
+          && resistanceValueEl.textContent === "—"
+        ) {
+          setResistance(data.last_led_resistance_ohm);
         }
       } catch {
         setStatus(false);
@@ -816,6 +895,9 @@
           }
           if (data.type === "current" && data.ma != null) {
             handleCurrent(data.ma, !data.cached);
+          }
+          if (data.type === "resistance" && data.ohm != null) {
+            handleResistance(data.ohm, !data.cached);
           }
         } catch {
           showNotification("Invalid message from server");
@@ -859,12 +941,18 @@
       setCurrent(last.v);
       renderSeriesChart(currentChart, currentHistory);
     }
+    if (resistanceHistory.length) {
+      const last = resistanceHistory[resistanceHistory.length - 1];
+      setResistance(last.v);
+      renderSeriesChart(resistanceChart, resistanceHistory);
+    }
 
     window.addEventListener("beforeunload", () => {
       saveHistory(LOGIC_STORAGE_KEY, logicHistory);
       saveHistory(POT_STORAGE_KEY, potHistory);
       saveHistory(DETECTED_STORAGE_KEY, detectedHistory);
       saveHistory(CURRENT_STORAGE_KEY, currentHistory);
+      saveHistory(RESISTANCE_STORAGE_KEY, resistanceHistory);
     });
   </script>
 </body>

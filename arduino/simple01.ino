@@ -2,8 +2,12 @@
 #define POT_PIN A0
 #define LED_PIN 9
 #define CURRENT_PIN A1
+#define LED_VOLTAGE_PIN A2
 
 #define SHUNT_RESISTOR 10.0
+
+bool signalState = false;
+bool undefinedLedState = false;
 
 void setup() {
   pinMode(SIGNAL_PIN, OUTPUT);
@@ -15,47 +19,17 @@ void setup() {
 void loop() {
 
   // ==========================================
-  // ЛОГИЧЕСКАЯ 1 НА SIGNAL_PIN
+  // 1. Переключаем логический сигнал
   // ==========================================
 
-  digitalWrite(SIGNAL_PIN, HIGH);
+  signalState = !signalState;
 
-  Serial.println();
-  Serial.println("SIGNAL_PIN: Logic 1 (HIGH)");
-
-  unsigned long startTime = millis();
-
-  while (millis() - startTime < 1000) {
-    processPotentiometer();
-
-    delay(1000);
-  }
+  digitalWrite(SIGNAL_PIN, signalState);
 
 
   // ==========================================
-  // ЛОГИЧЕСКИЙ 0 НА SIGNAL_PIN
+  // 2. Считываем потенциометр
   // ==========================================
-
-  digitalWrite(SIGNAL_PIN, LOW);
-
-  Serial.println();
-  Serial.println("SIGNAL_PIN: Logic 0 (LOW)");
-
-  startTime = millis();
-
-  while (millis() - startTime < 1000) {
-    processPotentiometer();
-
-    delay(1000);
-  }
-}
-
-
-// ==========================================
-// ОБРАБОТКА ПОТЕНЦИОМЕТРА
-// ==========================================
-
-void processPotentiometer() {
 
   int analogValue = analogRead(POT_PIN);
 
@@ -63,46 +37,45 @@ void processPotentiometer() {
 
 
   // ==========================================
-  // ЗОНА LOW
+  // 3. Определяем логическую зону
   // ==========================================
+
+  String logicState;
+
+  int brightness = 0;
 
   if (voltage < 1.5) {
 
+    // LOW
+    logicState = "0 (LOW)";
+
     analogWrite(LED_PIN, 0);
 
-    printValues(voltage, 0);
-
   }
-
-
-  // ==========================================
-  // НЕОПРЕДЕЛЁННАЯ ЗОНА
-  // ==========================================
 
   else if (voltage < 3.0) {
 
-    static bool ledState = false;
-    static unsigned long lastBlink = 0;
+    // UNDEFINED
+    logicState = "UNDEFINED";
 
-    if (millis() - lastBlink >= 100) {
-      lastBlink = millis();
-      ledState = !ledState;
+    // Меняем состояние LED каждую секунду
+    undefinedLedState = !undefinedLedState;
+
+    if (undefinedLedState) {
+      digitalWrite(LED_PIN, HIGH);
     }
-
-    digitalWrite(LED_PIN, ledState);
-
-    printValues(voltage, 0);
+    else {
+      digitalWrite(LED_PIN, LOW);
+    }
 
   }
 
-
-  // ==========================================
-  // ЗОНА HIGH
-  // ==========================================
-
   else {
 
-    int brightness = map(
+    // HIGH
+    logicState = "1 (HIGH)";
+
+    brightness = map(
       analogValue,
       614,
       1023,
@@ -111,46 +84,66 @@ void processPotentiometer() {
     );
 
     analogWrite(LED_PIN, brightness);
-
-    printValues(voltage, brightness);
   }
-}
 
 
-// ==========================================
-// ИЗМЕРЕНИЕ И ВЫВОД ТОКА
-// ==========================================
+  // ==========================================
+  // 4. Измеряем ток через шунт
+  // ==========================================
 
-void printValues(float potentiometerVoltage, int pwm) {
-
-  // Измеряем напряжение на шунте
   int currentADC = analogRead(CURRENT_PIN);
 
   float shuntVoltage = currentADC * 5.0 / 1023.0;
 
-  // Закон Ома
   float current = shuntVoltage / SHUNT_RESISTOR;
 
-  // Переводим A → mA
   float current_mA = current * 1000.0;
 
 
-  Serial.print("Pot: ");
-  Serial.print(potentiometerVoltage, 2);
-  Serial.print(" V | ");
+  // ==========================================
+  // 5. Измеряем напряжение на D9
+  // ==========================================
 
-  if (potentiometerVoltage < 1.5) {
-    Serial.print("Logic: 0");
-  }
-  else if (potentiometerVoltage < 3.0) {
-    Serial.print("Logic: UNDEFINED");
-  }
-  else {
-    Serial.print("Logic: 1");
+  int ledVoltageADC = analogRead(LED_VOLTAGE_PIN);
+
+  float d9Voltage = ledVoltageADC * 5.0 / 1023.0;
+
+
+  // ==========================================
+  // 6. Напряжение непосредственно на LED
+  // ==========================================
+
+  float ledVoltage = d9Voltage - shuntVoltage;
+
+  if (ledVoltage < 0) {
+    ledVoltage = 0;
   }
 
-  Serial.print(" | PWM: ");
-  Serial.print(pwm);
+
+  // ==========================================
+  // 7. Расчёт сопротивления LED
+  // ==========================================
+
+  float ledResistance = 0;
+
+  if (current > 0.0001) {
+    ledResistance = ledVoltage / current;
+  }
+
+
+  // ==========================================
+  // 8. Вывод в Serial Monitor
+  // ==========================================
+
+  Serial.print("Signal: ");
+  Serial.print(signalState ? "1" : "0");
+
+  Serial.print(" | Pot: ");
+  Serial.print(voltage, 2);
+  Serial.print(" V");
+
+  Serial.print(" | Logic: ");
+  Serial.print(logicState);
 
   Serial.print(" | Shunt: ");
   Serial.print(shuntVoltage, 3);
@@ -158,5 +151,16 @@ void printValues(float potentiometerVoltage, int pwm) {
 
   Serial.print(" | Current: ");
   Serial.print(current_mA, 1);
-  Serial.println(" mA");
+  Serial.print(" mA");
+
+  Serial.print(" | LED Resistance: ");
+  Serial.print(ledResistance, 1);
+  Serial.println(" Ohm");
+
+
+  // ==========================================
+  // 9. Следующее измерение через 1 секунду
+  // ==========================================
+
+  delay(1000);
 }
