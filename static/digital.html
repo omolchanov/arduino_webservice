@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arduino Digital Signal</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #1b1b1f;
+      color: #e8e8e8;
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 200px;
+      flex-shrink: 0;
+      background: #16161a;
+      border-right: 1px solid #3a3a42;
+      padding: 1.25rem 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0 0.5rem;
+    }
+
+    nav a {
+      color: #b0b0b0;
+      text-decoration: none;
+      font-size: 0.9rem;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid transparent;
+    }
+
+    nav a:hover {
+      color: #fff;
+      background: #252528;
+      border-color: #3a3a42;
+    }
+
+    nav a.active {
+      color: #fff;
+      background: #2a2a30;
+      border-color: #4a4a55;
+      border-left: 3px solid #fbbf24;
+      padding-left: calc(0.75rem - 2px);
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0.75rem 2rem;
+      border-bottom: 1px solid #3a3a42;
+      background: #1c1c22;
+    }
+
+    .app-status {
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid #3a3a42;
+    }
+
+    .app-status.online {
+      color: #4ade80;
+      border-color: #2d5a40;
+      background: #1a2e22;
+    }
+
+    .app-status.offline {
+      color: #f87171;
+      border-color: #5a2d2d;
+      background: #2e1a1a;
+    }
+
+    .content {
+      flex: 1;
+      padding: 1.5rem 2rem;
+      overflow: auto;
+    }
+
+    .page-title-row {
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+
+    .page-title {
+      float: left;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #ccc;
+      margin-bottom: 0;
+    }
+
+    .btn-clear {
+      float: right;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #b0b0b0;
+      background: #252528;
+      border: 1px solid #3a3a42;
+      padding: 0.25rem 0.55rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-clear:hover {
+      color: #fff;
+      border-color: #4a4a55;
+      background: #2a2a30;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .card {
+      background: #222228;
+      border: 1px solid #3a3a42;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-wide {
+      grid-column: 1 / -1;
+    }
+
+    .card-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #aaa;
+      padding: 0.6rem 0.85rem;
+      border-bottom: 1px solid #3a3a42;
+      background: #1c1c22;
+    }
+
+    .sensor-status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+      border-radius: 50%;
+      background: #888;
+    }
+
+    .sensor-status-dot.ok { background: #4ade80; }
+    .sensor-status-dot.error { background: #f87171; }
+
+    .card-body {
+      padding: 1.25rem 0.85rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .logic-current {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .logic-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #fbbf24;
+    }
+
+    .logic-label {
+      font-size: 1rem;
+      color: #888;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 220px;
+      width: 100%;
+    }
+
+    .notification {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border: 1px solid #3a3a42;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .notification.show { opacity: 1; }
+    .notification.error { background: #2e1a1a; color: #fca5a5; border-color: #5a2d2d; }
+    .notification.success { background: #1a2e22; color: #86efac; border-color: #2d5a40; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <nav>
+        <a href="/">Keypad</a>
+        <a href="/sensors">Sensors</a>
+        <a href="/digital" class="active">Digital Signal</a>
+      </nav>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <span id="status" class="app-status offline">Offline</span>
+      </header>
+
+      <main class="content">
+        <div class="page-title-row">
+          <h1 class="page-title">Digital Signal</h1>
+          <button type="button" id="clearGraphBtn" class="btn-clear">Clear</button>
+        </div>
+
+        <div class="dashboard">
+          <div class="card card-wide">
+            <div class="card-header">
+              Logic signal LED <span id="logicDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body">
+              <div class="logic-current">
+                <div id="logicValue" class="logic-value">—</div>
+                <div id="logicLabel" class="logic-label"></div>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="logicChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <script>
+    const WINDOW_SEC = 120;
+    const STORAGE_KEY = "digital-logic-led-history";
+    const SENSOR_PENDING_MS = 10000;
+
+    const logicValueEl = document.getElementById("logicValue");
+    const logicLabelEl = document.getElementById("logicLabel");
+    const logicDotEl = document.getElementById("logicDot");
+    const statusEl = document.getElementById("status");
+    const notificationEl = document.getElementById("notification");
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const data = JSON.parse(raw);
+        if (!Array.isArray(data.points)) return [];
+        const cutoff = Date.now() - WINDOW_SEC * 1000;
+        return data.points.filter(
+          (p) => p.ts && p.ts >= cutoff && (p.v === 0 || p.v === 1)
+        );
+      } catch {
+        return [];
+      }
+    }
+
+    function pruneHistory() {
+      const cutoff = Date.now() - WINDOW_SEC * 1000;
+      while (history.length && history[0].ts < cutoff) {
+        history.shift();
+      }
+    }
+
+    function saveHistory() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ points: history }));
+      } catch {
+        showNotification("Could not save graph history");
+      }
+    }
+
+    const history = loadHistory();
+    let ws = null;
+    let reconnectTimer = null;
+    let arduinoOnline = false;
+    let serialStatusKnown = false;
+    let logicDotState = "initializing";
+    let logicPendingTimer = null;
+    let logicInitTimeoutId = null;
+
+    function showNotification(message, type = "error") {
+      notificationEl.textContent = message;
+      notificationEl.className = `notification show ${type}`;
+      setTimeout(() => notificationEl.classList.remove("show"), 3000);
+    }
+
+    function setLogicDot(state) {
+      logicDotState = state;
+      logicDotEl.className = `sensor-status-dot ${state}`;
+    }
+
+    function clearLogicTimers() {
+      if (logicPendingTimer) {
+        clearTimeout(logicPendingTimer);
+        logicPendingTimer = null;
+      }
+      if (logicInitTimeoutId) {
+        clearTimeout(logicInitTimeoutId);
+        logicInitTimeoutId = null;
+      }
+    }
+
+    function startLogicInitTimeout() {
+      clearLogicTimers();
+      logicInitTimeoutId = setTimeout(() => {
+        if (arduinoOnline && logicDotState === "initializing") {
+          setLogicDot("error");
+        }
+      }, SENSOR_PENDING_MS);
+    }
+
+    function applyLogicReading(value, live) {
+      if (!arduinoOnline || !live) return;
+      if (logicInitTimeoutId) {
+        clearTimeout(logicInitTimeoutId);
+        logicInitTimeoutId = null;
+      }
+      setLogicDot("ok");
+    }
+
+    function setStatus(connected) {
+      statusEl.textContent = connected ? "Online" : "Offline";
+      statusEl.className = `app-status ${connected ? "online" : "offline"}`;
+      if (connected === arduinoOnline) return;
+      arduinoOnline = connected;
+      clearLogicTimers();
+      if (connected) {
+        setLogicDot("initializing");
+        startLogicInitTimeout();
+      } else {
+        setLogicDot("error");
+      }
+    }
+
+    function setLogic(value) {
+      logicValueEl.textContent = String(value);
+      logicLabelEl.textContent = "generated";
+    }
+
+    const chart = new Chart(document.getElementById("logicChart"), {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Logic signal LED",
+          parsing: false,
+          data: [],
+          borderColor: "#fbbf24",
+          backgroundColor: "rgba(251, 191, 36, 0.1)",
+          stepped: true,
+          fill: true,
+          pointRadius: 0,
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+          x: {
+            type: "linear",
+            min: 0,
+            max: WINDOW_SEC,
+            title: { display: true, text: "Seconds", color: "#888" },
+            ticks: { color: "#888" },
+            grid: { color: "#3a3a42" },
+          },
+          y: {
+            min: 0,
+            max: 1,
+            ticks: {
+              stepSize: 1,
+              color: "#888",
+              callback: (v) => String(v),
+            },
+            grid: { color: "#3a3a42" },
+          },
+        },
+        plugins: {
+          legend: { display: false },
+        },
+      },
+    });
+
+    function renderChart() {
+      pruneHistory();
+      const now = Date.now();
+      const windowStart = now - WINDOW_SEC * 1000;
+
+      if (!history.length) {
+        chart.data.datasets[0].data = [];
+        chart.update();
+        return;
+      }
+
+      chart.data.datasets[0].data = history.map((p) => ({
+        x: (p.ts - windowStart) / 1000,
+        y: p.v,
+      }));
+      chart.update();
+    }
+
+    function clearGraph() {
+      history.length = 0;
+      localStorage.removeItem(STORAGE_KEY);
+      renderChart();
+      showNotification("Graph cleared", "success");
+    }
+
+    function appendLogicPoint(value) {
+      history.push({ ts: Date.now(), v: value });
+      pruneHistory();
+      saveHistory();
+      renderChart();
+    }
+
+    function handleLogic(value, live) {
+      setLogic(value);
+      appendLogicPoint(value);
+      applyLogicReading(value, live);
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        setStatus(data.serial_connected);
+        if (data.last_logic_value != null && logicValueEl.textContent === "—") {
+          handleLogic(data.last_logic_value, false);
+        }
+      } catch {
+        setStatus(false);
+      }
+    }
+
+    function connect() {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "serial_status") {
+            const wasOnline = arduinoOnline;
+            setStatus(data.connected);
+            if (serialStatusKnown && data.connected && !wasOnline) {
+              showNotification("Arduino reconnected", "success");
+            }
+            serialStatusKnown = true;
+            return;
+          }
+          if (data.type === "logic" && data.value != null) {
+            handleLogic(Number(data.value), !data.cached);
+          }
+        } catch {
+          showNotification("Invalid message from server");
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus(false);
+        reconnectTimer = setTimeout(connect, 2000);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+        showNotification("Connection error");
+      };
+    }
+
+    connect();
+    pollStatus();
+    setInterval(pollStatus, 3000);
+
+    document.getElementById("clearGraphBtn").addEventListener("click", clearGraph);
+
+    if (history.length) {
+      const last = history[history.length - 1];
+      setLogic(last.v);
+      renderChart();
+    }
+
+    window.addEventListener("beforeunload", saveHistory);
+  </script>
+</body>
+</html>

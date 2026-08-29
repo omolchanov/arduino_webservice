@@ -188,6 +188,7 @@
       <nav>
         <a href="/">Keypad</a>
         <a href="/sensors" class="active">Sensors</a>
+        <a href="/digital">Digital Signal</a>
       </nav>
     </aside>
 
@@ -251,6 +252,7 @@
     let ws = null;
     let reconnectTimer = null;
     let arduinoOnline = false;
+    let serialStatusKnown = false;
 
     function showNotification(message, type = "error") {
       notificationEl.textContent = message;
@@ -401,11 +403,12 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === "serial_status") {
-            const wasOffline = !arduinoOnline;
+            const wasOnline = arduinoOnline;
             setStatus(data.connected);
-            if (data.connected && wasOffline) {
+            if (serialStatusKnown && data.connected && !wasOnline) {
               showNotification("Arduino reconnected", "success");
             }
+            serialStatusKnown = true;
             return;
           }
           if (data.type === "distance" && data.cm != null) {

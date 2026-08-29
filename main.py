@@ -23,6 +23,7 @@ PRESSED_PREFIX = "Pressed: "
 IGNORED_LINES = {"Keypad ready"}
 DISTANCE_PATTERN = re.compile(r"^Distance:\s*([\d.]+)\s*cm$")
 LIGHT_PATTERN = re.compile(r"^Light:\s*(\d+)$")
+LOGIC_PATTERN = re.compile(r"^Generated:\s*([01])\s*\|")
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
@@ -30,6 +31,7 @@ event_loop: asyncio.AbstractEventLoop | None = None
 serial_connected = False
 last_distance_cm: float | None = None
 last_light_level: int | None = None
+last_logic_value: int | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -65,6 +67,13 @@ def parse_light_line(line: str) -> int | None:
     return int(match.group(1))
 
 
+def parse_logic_line(line: str) -> int | None:
+    match = LOGIC_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return int(match.group(1))
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -87,6 +96,10 @@ async def broadcast_distance(cm: float) -> None:
 
 async def broadcast_light(level: int) -> None:
     await broadcast_message(json.dumps({"type": "light", "level": level}))
+
+
+async def broadcast_logic(value: int) -> None:
+    await broadcast_message(json.dumps({"type": "logic", "value": value}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -120,6 +133,13 @@ def notify_light(level: int) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_light(level), event_loop)
 
 
+def notify_logic(value: int) -> None:
+    global last_logic_value
+    last_logic_value = value
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_logic(value), event_loop)
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -148,6 +168,11 @@ def read_serial(port: serial.Serial) -> None:
         if light is not None:
             logger.info("Light: %d (clients: %d)", light, len(clients))
             notify_light(light)
+            continue
+        logic = parse_logic_line(line)
+        if logic is not None:
+            logger.info("Logic: %d (clients: %d)", logic, len(clients))
+            notify_logic(logic)
             continue
         key = parse_key_line(line)
         if key:
@@ -236,6 +261,11 @@ async def sensors():
     return FileResponse(STATIC_DIR / "sensors.html")
 
 
+@app.get("/digital")
+async def digital():
+    return FileResponse(STATIC_DIR / "digital.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -244,6 +274,7 @@ async def status():
         "ws_clients": len(clients),
         "last_distance_cm": last_distance_cm,
         "last_light_level": last_light_level,
+        "last_logic_value": last_logic_value,
     }
 
 
@@ -267,6 +298,10 @@ async def websocket_endpoint(websocket: WebSocket):
     if last_light_level is not None:
         await websocket.send_text(
             json.dumps({"type": "light", "level": last_light_level, "cached": True})
+        )
+    if last_logic_value is not None:
+        await websocket.send_text(
+            json.dumps({"type": "logic", "value": last_logic_value, "cached": True})
         )
     try:
         while True:
