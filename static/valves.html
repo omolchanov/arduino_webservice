@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arduino Valves</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #1b1b1f;
+      color: #e8e8e8;
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 200px;
+      flex-shrink: 0;
+      background: #16161a;
+      border-right: 1px solid #3a3a42;
+      padding: 1.25rem 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0 0.5rem;
+    }
+
+    nav a {
+      color: #b0b0b0;
+      text-decoration: none;
+      font-size: 0.9rem;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid transparent;
+    }
+
+    nav a:hover {
+      color: #fff;
+      background: #252528;
+      border-color: #3a3a42;
+    }
+
+    nav a.active {
+      color: #fff;
+      background: #2a2a30;
+      border-color: #4a4a55;
+      border-left: 3px solid #a78bfa;
+      padding-left: calc(0.75rem - 2px);
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 2rem;
+      border-bottom: 1px solid #3a3a42;
+      background: #1c1c22;
+    }
+
+    .gate-select {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #e8e8e8;
+      background: #252528;
+      border: 1px solid #3a3a42;
+      padding: 0.35rem 0.75rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .gate-select:hover {
+      border-color: #4a4a55;
+      background: #2a2a30;
+    }
+
+    .app-status {
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid #3a3a42;
+    }
+
+    .app-status.online {
+      color: #4ade80;
+      border-color: #2d5a40;
+      background: #1a2e22;
+    }
+
+    .app-status.offline {
+      color: #f87171;
+      border-color: #5a2d2d;
+      background: #2e1a1a;
+    }
+
+    .content {
+      flex: 1;
+      padding: 1.5rem 2rem;
+      overflow: auto;
+    }
+
+    .page-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #ccc;
+      margin-bottom: 0;
+    }
+
+    .page-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      gap: 1rem;
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .value-widgets-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .value-widgets-row .card {
+      min-width: 0;
+    }
+
+    .card {
+      background: #222228;
+      border: 1px solid #3a3a42;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-wide {
+      grid-column: 1 / -1;
+    }
+
+    .card-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #aaa;
+      padding: 0.6rem 0.85rem;
+      border-bottom: 1px solid #3a3a42;
+      background: #1c1c22;
+    }
+
+    .sensor-status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-left: 0.4rem;
+      vertical-align: middle;
+      border-radius: 50%;
+      background: #888;
+    }
+
+    .sensor-status-dot.ok { background: #4ade80; }
+    .sensor-status-dot.error { background: #f87171; }
+
+    .card-body {
+      padding: 1.25rem 0.85rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .card-body-value {
+      justify-content: center;
+      align-items: center;
+    }
+
+    .gate-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #a78bfa;
+    }
+
+    .inputs-value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.4;
+      color: #60a5fa;
+      text-align: center;
+    }
+
+    .output-value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #34d399;
+    }
+
+    .distance-unit {
+      font-size: 1rem;
+      color: #888;
+      margin-top: 0.5rem;
+    }
+
+    .truth-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    .truth-table th,
+    .truth-table td {
+      padding: 0.65rem 1rem;
+      text-align: center;
+      border: 1px solid #3a3a42;
+    }
+
+    .truth-table th {
+      background: #1c1c22;
+      color: #aaa;
+      font-weight: 600;
+    }
+
+    .truth-table td {
+      color: #e8e8e8;
+    }
+
+    .truth-table tr.active td {
+      background: #2a2540;
+      color: #c4b5fd;
+    }
+
+    .notification {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border: 1px solid #3a3a42;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .notification.show { opacity: 1; }
+    .notification.error { background: #2e1a1a; color: #fca5a5; border-color: #5a2d2d; }
+    .notification.success { background: #1a2e22; color: #86efac; border-color: #2d5a40; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <nav>
+        <a href="/">Keypad</a>
+        <a href="/sensors">Sensors</a>
+        <a href="/digital">Digital Signal</a>
+        <a href="/valves" class="active">Valves</a>
+      </nav>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <span id="status" class="app-status offline">Offline</span>
+      </header>
+
+      <main class="content">
+        <div class="page-title-row">
+          <h1 class="page-title">Logical Valves</h1>
+          <select id="gateSelect" class="gate-select" aria-label="Select gate">
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+            <option value="NOT">NOT</option>
+            <option value="NAND">NAND</option>
+            <option value="NOR">NOR</option>
+            <option value="XOR">XOR</option>
+            <option value="XNOR">XNOR</option>
+          </select>
+        </div>
+
+        <div class="dashboard">
+          <div class="value-widgets-row">
+            <div class="card">
+              <div class="card-header">
+                Selected gate <span id="gateDot" class="sensor-status-dot" aria-hidden="true"></span>
+              </div>
+              <div class="card-body card-body-value">
+                <div id="gateValue" class="gate-value">—</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                Inputs <span id="inputsDot" class="sensor-status-dot" aria-hidden="true"></span>
+              </div>
+              <div class="card-body card-body-value">
+                <div id="inputsValue" class="inputs-value">A: —<br>B: —</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                Output <span id="outputDot" class="sensor-status-dot" aria-hidden="true"></span>
+              </div>
+              <div class="card-body card-body-value">
+                <div id="outputValue" class="output-value">—</div>
+                <div class="distance-unit">Y</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-wide">
+            <div class="card-header">Truth table</div>
+            <div class="card-body">
+              <table class="truth-table">
+                <thead>
+                  <tr>
+                    <th>A</th>
+                    <th>B</th>
+                    <th>Y</th>
+                  </tr>
+                </thead>
+                <tbody id="truthTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div id="notification" class="notification"></div>
+
+  <script>
+    const SENSOR_PENDING_MS = 10000;
+    const TRUTH_TABLES = {
+      AND: [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 1]],
+      OR: [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]],
+      NOT: [[0, null, 1], [1, null, 0]],
+      NAND: [[0, 0, 1], [0, 1, 1], [1, 0, 1], [1, 1, 0]],
+      NOR: [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 0]],
+      XOR: [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]],
+      XNOR: [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 1]],
+    };
+
+    const gateSelectEl = document.getElementById("gateSelect");
+    const gateValueEl = document.getElementById("gateValue");
+    const inputsValueEl = document.getElementById("inputsValue");
+    const outputValueEl = document.getElementById("outputValue");
+    const truthTableBodyEl = document.getElementById("truthTableBody");
+    const statusEl = document.getElementById("status");
+    const notificationEl = document.getElementById("notification");
+
+    const widgets = {
+      gate: {
+        dotState: "initializing",
+        dotEl: document.getElementById("gateDot"),
+        initTimeoutId: null,
+      },
+      inputs: {
+        dotState: "initializing",
+        dotEl: document.getElementById("inputsDot"),
+        initTimeoutId: null,
+      },
+      output: {
+        dotState: "initializing",
+        dotEl: document.getElementById("outputDot"),
+        initTimeoutId: null,
+      },
+    };
+
+    let ws = null;
+    let reconnectTimer = null;
+    let arduinoOnline = false;
+    let serialStatusKnown = false;
+    let selectedGate = "AND";
+    let currentA = null;
+    let currentB = null;
+    let suppressGateChange = false;
+
+    function showNotification(message, type = "error") {
+      notificationEl.textContent = message;
+      notificationEl.className = `notification show ${type}`;
+      setTimeout(() => notificationEl.classList.remove("show"), 3000);
+    }
+
+    function setWidgetDot(widgetId, state) {
+      widgets[widgetId].dotState = state;
+      widgets[widgetId].dotEl.className = `sensor-status-dot ${state}`;
+    }
+
+    function clearWidgetInitTimeout(widgetId) {
+      const widget = widgets[widgetId];
+      if (widget.initTimeoutId) {
+        clearTimeout(widget.initTimeoutId);
+        widget.initTimeoutId = null;
+      }
+    }
+
+    function startWidgetInitTimeouts() {
+      for (const [id, widget] of Object.entries(widgets)) {
+        if (widget.dotState !== "initializing") continue;
+        clearWidgetInitTimeout(id);
+        widget.initTimeoutId = setTimeout(() => {
+          if (arduinoOnline && widget.dotState === "initializing") {
+            setWidgetDot(id, "error");
+          }
+        }, SENSOR_PENDING_MS);
+      }
+    }
+
+    function applyWidgetReading(widgetId, live) {
+      if (!arduinoOnline || !live) return;
+      clearWidgetInitTimeout(widgetId);
+      setWidgetDot(widgetId, "ok");
+    }
+
+    function onWidgetsOffline() {
+      for (const id of Object.keys(widgets)) {
+        clearWidgetInitTimeout(id);
+        setWidgetDot(id, "error");
+      }
+    }
+
+    function onWidgetsOnline() {
+      for (const id of Object.keys(widgets)) {
+        clearWidgetInitTimeout(id);
+        setWidgetDot(id, "initializing");
+      }
+      startWidgetInitTimeouts();
+    }
+
+    function setStatus(connected) {
+      statusEl.textContent = connected ? "Online" : "Offline";
+      statusEl.className = `app-status ${connected ? "online" : "offline"}`;
+      if (connected === arduinoOnline) return;
+      arduinoOnline = connected;
+      if (connected) {
+        onWidgetsOnline();
+      } else {
+        onWidgetsOffline();
+      }
+    }
+
+    function renderTruthTable() {
+      const rows = TRUTH_TABLES[selectedGate] || [];
+      truthTableBodyEl.innerHTML = rows
+        .map(([a, b, y]) => {
+          const active =
+            currentA !== null &&
+            (selectedGate === "NOT"
+              ? a === currentA
+              : currentB !== null && a === currentA && b === currentB);
+          const bCell = b === null ? "—" : b;
+          return `<tr class="${active ? "active" : ""}"><td>${a}</td><td>${bCell}</td><td>${y}</td></tr>`;
+        })
+        .join("");
+    }
+
+    function setGateSelect(gate) {
+      suppressGateChange = true;
+      gateSelectEl.value = gate;
+      suppressGateChange = false;
+      selectedGate = gate;
+      renderTruthTable();
+    }
+
+    function applyValve(data, live) {
+      currentA = data.a;
+      currentB = data.b;
+      gateValueEl.textContent = data.gate;
+      inputsValueEl.innerHTML = `A: ${data.a}<br>B: ${data.b}`;
+      outputValueEl.textContent = String(data.y);
+      setGateSelect(data.gate);
+      renderTruthTable();
+      applyWidgetReading("gate", live);
+      applyWidgetReading("inputs", live);
+      applyWidgetReading("output", live);
+    }
+
+    async function sendGateSelection(gate) {
+      try {
+        const response = await fetch("/api/valve/gate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gate }),
+        });
+        if (!response.ok) {
+          const detail = response.status === 503
+            ? "Serial not connected"
+            : "Could not set gate";
+          showNotification(detail, "error");
+          return;
+        }
+        selectedGate = gate;
+        renderTruthTable();
+        showNotification(`Gate set to ${gate}`, "success");
+      } catch {
+        showNotification("Could not set gate", "error");
+      }
+    }
+
+    async function pollStatus() {
+      try {
+        const response = await fetch("/api/status");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!serialStatusKnown) {
+          serialStatusKnown = true;
+          setStatus(data.serial_connected);
+        }
+        if (
+          data.last_valve_gate !== null &&
+          data.last_valve_a !== null &&
+          data.last_valve_b !== null &&
+          data.last_valve_y !== null
+        ) {
+          applyValve(
+            {
+              a: data.last_valve_a,
+              b: data.last_valve_b,
+              y: data.last_valve_y,
+              gate: data.last_valve_gate,
+            },
+            false
+          );
+        }
+      } catch {
+        if (!serialStatusKnown) {
+          serialStatusKnown = true;
+          setStatus(false);
+        }
+      }
+    }
+
+    function connectWebSocket() {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+      ws.onopen = () => {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+      };
+
+      ws.onmessage = (event) => {
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+        if (data.type === "serial_status") {
+          serialStatusKnown = true;
+          setStatus(data.connected);
+          return;
+        }
+        if (data.type === "valve") {
+          applyValve(data, !data.cached);
+        }
+      };
+
+      ws.onclose = () => {
+        ws = null;
+        if (!reconnectTimer) {
+          reconnectTimer = setTimeout(connectWebSocket, 2000);
+        }
+      };
+    }
+
+    gateSelectEl.addEventListener("change", () => {
+      if (suppressGateChange) return;
+      sendGateSelection(gateSelectEl.value);
+    });
+
+    renderTruthTable();
+    pollStatus();
+    setInterval(pollStatus, 3000);
+    connectWebSocket();
+  </script>
+</body>
+</html>

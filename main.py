@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import serial
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +33,10 @@ POT_PATTERN = re.compile(
     r"(?:\s*\|\s*Current:\s*([\d.]+)\s*mA)?"
     r"(?:\s*\|\s*LED Resistance:\s*([\d.]+)\s*Ohm)?$"
 )
+VALVE_PATTERN = re.compile(
+    r"^A\s*=\s*(\d)\s*\|\s*B\s*=\s*(\d)\s*\|\s*Y\s*=\s*(\d)\s*\|\s*Gate\s*=\s*(AND|OR|NOT|NAND|NOR|XOR|XNOR)$"
+)
+VALID_VALVE_GATES = frozenset({"AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"})
 
 clients: list[WebSocket] = []
 key_queue: asyncio.Queue[str] | None = None
@@ -46,9 +50,14 @@ last_potentiometer_v: float | None = None
 last_detected_value: float | None = None
 last_current_ma: float | None = None
 last_led_resistance_ohm: float | None = None
+last_valve_a: int | None = None
+last_valve_b: int | None = None
+last_valve_y: int | None = None
+last_valve_gate: str | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
+serial_lock = threading.Lock()
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -115,6 +124,18 @@ def parse_pot_line(
     return voltage, logic, current_ma, resistance_ohm, signal
 
 
+def parse_valve_line(line: str) -> tuple[int, int, int, str] | None:
+    match = VALVE_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return (
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3)),
+        match.group(4),
+    )
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -161,6 +182,12 @@ async def broadcast_current(ma: float) -> None:
 
 async def broadcast_resistance(ohm: float) -> None:
     await broadcast_message(json.dumps({"type": "resistance", "ohm": ohm}))
+
+
+async def broadcast_valve(a: int, b: int, y: int, gate: str) -> None:
+    await broadcast_message(
+        json.dumps({"type": "valve", "a": a, "b": b, "y": y, "gate": gate})
+    )
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -236,6 +263,27 @@ def notify_resistance(ohm: float) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_resistance(ohm), event_loop)
 
 
+def notify_valve(a: int, b: int, y: int, gate: str) -> None:
+    global last_valve_a, last_valve_b, last_valve_y, last_valve_gate
+    last_valve_a = a
+    last_valve_b = b
+    last_valve_y = y
+    last_valve_gate = gate
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_valve(a, b, y, gate), event_loop)
+
+
+def write_serial_gate(gate: str) -> bool:
+    if gate not in VALID_VALVE_GATES:
+        return False
+    command = f"{gate}\n".encode()
+    with serial_lock:
+        if not serial_connected or serial_port is None or not serial_port.is_open:
+            return False
+        serial_port.write(command)
+        return True
+
+
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -292,6 +340,19 @@ def read_serial(port: serial.Serial) -> None:
                 notify_current(current_ma)
             if resistance_ohm is not None:
                 notify_resistance(resistance_ohm)
+            continue
+        valve = parse_valve_line(line)
+        if valve is not None:
+            a, b, y, gate = valve
+            logger.info(
+                "Valve: A=%d B=%d Y=%d gate=%s (clients: %d)",
+                a,
+                b,
+                y,
+                gate,
+                len(clients),
+            )
+            notify_valve(a, b, y, gate)
             continue
         key = parse_key_line(line)
         if key:
@@ -385,6 +446,11 @@ async def digital():
     return FileResponse(STATIC_DIR / "digital.html")
 
 
+@app.get("/valves")
+async def valves():
+    return FileResponse(STATIC_DIR / "valves.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -399,7 +465,21 @@ async def status():
         "last_detected_value": last_detected_value,
         "last_current_ma": last_current_ma,
         "last_led_resistance_ohm": last_led_resistance_ohm,
+        "last_valve_a": last_valve_a,
+        "last_valve_b": last_valve_b,
+        "last_valve_y": last_valve_y,
+        "last_valve_gate": last_valve_gate,
     }
+
+
+@app.post("/api/valve/gate")
+async def set_valve_gate(body: dict):
+    gate = body.get("gate")
+    if gate not in VALID_VALVE_GATES:
+        raise HTTPException(status_code=400, detail="Invalid gate")
+    if not write_serial_gate(gate):
+        raise HTTPException(status_code=503, detail="Serial not connected")
+    return {"ok": True, "gate": gate}
 
 
 @app.websocket("/ws")
@@ -455,6 +535,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 {
                     "type": "resistance",
                     "ohm": last_led_resistance_ohm,
+                    "cached": True,
+                }
+            )
+        )
+    if last_valve_gate is not None:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "valve",
+                    "a": last_valve_a,
+                    "b": last_valve_b,
+                    "y": last_valve_y,
+                    "gate": last_valve_gate,
                     "cached": True,
                 }
             )
