@@ -1,5 +1,0 @@
-name: AUnit pass check
-version: 1
-steps:
-  - wait-serial: "TestRunner summary:"
-  - wait-serial: "0 failed"

@@ -33,6 +33,24 @@ class ParseValveLineTests(unittest.TestCase):
             (1, 0, 0, "NOT"),
         )
 
+    def test_nand_gate_line(self):
+        self.assertEqual(
+            parse_valve_line("A = 1 | B = 1 | Y = 0 | Gate = NAND"),
+            (1, 1, 0, "NAND"),
+        )
+
+    def test_nor_gate_line(self):
+        self.assertEqual(
+            parse_valve_line("A = 0 | B = 0 | Y = 1 | Gate = NOR"),
+            (0, 0, 1, "NOR"),
+        )
+
+    def test_xnor_gate_line(self):
+        self.assertEqual(
+            parse_valve_line("A = 0 | B = 0 | Y = 1 | Gate = XNOR"),
+            (0, 0, 1, "XNOR"),
+        )
+
     def test_invalid_lines(self):
         self.assertIsNone(parse_valve_line("Pot: 2.50 V | Logic: 0"))
         self.assertIsNone(parse_valve_line("Выбран AND"))

@@ -97,13 +97,7 @@ void loop() {
 
       logicState = "1 (HIGH)";
 
-      brightness = map(
-        analogValue,
-        614,
-        1023,
-        0,
-        255
-      );
+      brightness = brightnessForPot(analogValue);
 
       analogWrite(LED_PIN, brightness);
     }

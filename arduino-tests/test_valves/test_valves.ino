@@ -52,6 +52,22 @@ test(xnor_gate) {
   assertTrue(evalGate("XNOR", 1, 1));
 }
 
+test(valid_gate_commands) {
+  assertTrue(isValidGateCommand("AND"));
+  assertTrue(isValidGateCommand("OR"));
+  assertTrue(isValidGateCommand("NOT"));
+  assertTrue(isValidGateCommand("NAND"));
+  assertTrue(isValidGateCommand("NOR"));
+  assertTrue(isValidGateCommand("XOR"));
+  assertTrue(isValidGateCommand("XNOR"));
+}
+
+test(invalid_gate_commands) {
+  assertFalse(isValidGateCommand("FOO"));
+  assertFalse(isValidGateCommand(""));
+  assertFalse(isValidGateCommand("and"));
+}
+
 void setup() {
 #if !defined(EPOXY_DUINO)
   delay(2000);

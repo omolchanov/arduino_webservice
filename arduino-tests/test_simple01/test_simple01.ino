@@ -24,6 +24,15 @@ test(led_resistance) {
   assertNear(0.0f, ledResistance(1.0f, 0.0f), 0.001f);
 }
 
+test(brightness_for_pot) {
+  assertEqual(0, brightnessForPot(0));
+  assertEqual(0, brightnessForPot(613));
+  assertEqual(0, brightnessForPot(614));
+  assertEqual(255, brightnessForPot(1023));
+  assertEqual(255, brightnessForPot(1100));
+  assertEqual(127, brightnessForPot(818));
+}
+
 void setup() {
 #if !defined(EPOXY_DUINO)
   delay(2000);

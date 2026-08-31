@@ -6,3 +6,5 @@ venv/
 arduino-tests/**/build/
 arduino-tests/**/wokwi-report.log
 arduino-tests/wokwi-suite-report.log
+arduino/**/build/
+arduino/**/wokwi-report.log

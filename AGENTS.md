@@ -19,7 +19,21 @@ uvicorn main:app --reload
 python -m pytest pytest/
 ```
 
-Arduino firmware logic (AUnit + arduino-cli):
+### Arduino unit tests (EpoxyDuino, offline)
+
+Clone [EpoxyDuino](https://github.com/bxparks/EpoxyDuino) and [AUnit](https://github.com/bxparks/AUnit) one level above the repo, then:
+
+```bash
+make -C arduino-tests runtests
+```
+
+| Sketch | Test project |
+|--------|--------------|
+| `arduino/valves/` | `arduino-tests/test_valves/` |
+| `arduino/simple01/` | `arduino-tests/test_simple01/` |
+| `arduino/sensors/` | `arduino-tests/test_sensors/` |
+
+### Arduino compile and optional hardware tests
 
 ```bash
 arduino-cli core install arduino:avr
@@ -28,23 +42,22 @@ powershell -File scripts/arduino_test.ps1 -CompileOnly
 powershell -File scripts/arduino_test.ps1 -Port COM8
 ```
 
-Arduino AUnit on Wokwi (simulated Uno, no board; requires internet):
+### Arduino integration tests (Wokwi, per-sketch diagram)
+
+Each production sketch with integration coverage keeps its own `diagram.json`, `wokwi.toml`, and `*.integration.yaml` under `arduino/<sketch>/`.
+
+| Sketch | Diagram | Scenario |
+|--------|---------|----------|
+| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` |
 
 ```powershell
-# Install Wokwi CLI: iwr https://wokwi.com/ci/install.ps1 -useb | iex
 # Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)
 $env:WOKWI_CLI_TOKEN = "your-token"
-powershell -File scripts/wokwi_test.ps1
-# Serial reports: arduino-tests/test_*/wokwi-report.log (per-test results listed)
-# Combined: arduino-tests/wokwi-suite-report.log
-# Linux/CI: WOKWI_CLI_TOKEN=... bash scripts/wokwi_test.sh
+powershell -File scripts/wokwi_integration_test.ps1
+# Linux/CI: WOKWI_CLI_TOKEN=... bash scripts/wokwi_integration_test.sh
 ```
 
-EpoxyDuino native AUnit (host, offline; clone EpoxyDuino + AUnit one level above repo):
-
-```bash
-make -C arduino-tests runtests
-```
+`wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run.
 
 Close Arduino Serial Monitor before running tests or starting uvicorn.
 
@@ -60,5 +73,5 @@ Close Arduino Serial Monitor before running tests or starting uvicorn.
 - No MVC folders unless a change explicitly requires it
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
-- `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit tests
+- `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit unit tests
 - Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`

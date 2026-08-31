@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/valves.ino.hex"
+elf = "build/valves.ino.elf"
