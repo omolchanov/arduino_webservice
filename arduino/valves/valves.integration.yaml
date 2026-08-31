@@ -1,0 +1,36 @@
+name: Valves integration test
+version: 1
+steps:
+  - wait-serial: "По умолчанию выбран AND"
+  - delay: 1200ms
+  - wait-serial: "A = 0 | B = 0 | Y = 0 | Gate = AND"
+  - set-control:
+      part-id: btnA
+      control: pressed
+      value: 1
+  - delay: 1200ms
+  - wait-serial: "A = 1 | B = 0 | Y = 0 | Gate = AND"
+  - set-control:
+      part-id: btnB
+      control: pressed
+      value: 1
+  - delay: 1200ms
+  - wait-serial: "A = 1 | B = 1 | Y = 1 | Gate = AND"
+  - set-control:
+      part-id: btnA
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnB
+      control: pressed
+      value: 0
+  - delay: 1200ms
+  - wait-serial: "A = 0 | B = 0 | Y = 0 | Gate = AND"
+  - write-serial: "OR\n"
+  - wait-serial: "Выбран вентиль: OR"
+  - set-control:
+      part-id: btnA
+      control: pressed
+      value: 1
+  - delay: 1200ms
+  - wait-serial: "A = 1 | B = 0 | Y = 1 | Gate = OR"

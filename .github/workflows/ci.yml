@@ -40,3 +40,36 @@ jobs:
 
       - name: Run AUnit unit tests (native)
         run: make -C arduino-tests runtests
+
+  arduino-integration-tests:
+    name: Arduino integration tests
+    needs: arduino-unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Install AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Install Wokwi CLI
+        run: curl -L https://wokwi.com/ci/install.sh | sh
+
+      - name: Run Wokwi integration tests
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+        run: |
+          export PATH="$HOME/.wokwi/bin:$PATH"
+          bash scripts/wokwi_integration_test.sh
+
+      - name: Upload Wokwi serial reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wokwi-integration-reports
+          path: arduino/**/wokwi-report.log
+          if-no-files-found: ignore
