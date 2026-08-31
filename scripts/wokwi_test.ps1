@@ -41,6 +41,9 @@ if ($LASTEXITCODE -ne 0) {
 
 $testProjects = Get-ChildItem -Path $ArduinoTestsDir -Directory -Filter "test_*" | Sort-Object Name
 $failed = @()
+$formatScript = Join-Path $RepoRoot "scripts\format_wokwi_report.py"
+$suiteReport = Join-Path $ArduinoTestsDir "wokwi-suite-report.log"
+python $formatScript --init-suite --suite-report $suiteReport
 
 foreach ($project in $testProjects) {
     $name = $project.Name
@@ -60,7 +63,9 @@ foreach ($project in $testProjects) {
     Push-Location $project.FullName
     try {
         & wokwi-cli . --scenario aunit.test.yaml --timeout $TimeoutMs --serial-log-file wokwi-report.log
-        if ($LASTEXITCODE -ne 0) {
+        $wokwiExit = $LASTEXITCODE
+        python $formatScript $name $logFile $wokwiExit --suite-report $suiteReport
+        if ($LASTEXITCODE -ne 0 -or $wokwiExit -ne 0) {
             $failed += "$name (wokwi)"
             Write-Host "FAIL: $name (see $logFile)"
         } else {
@@ -76,3 +81,4 @@ if ($failed.Count -gt 0) {
 }
 
 Write-Host "All Wokwi AUnit tests passed."
+Write-Host "Suite report: $suiteReport"

@@ -7,6 +7,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARDUINO_DIR="$REPO_ROOT/arduino"
 ARDUINO_TESTS_DIR="$REPO_ROOT/arduino-tests"
 INCLUDE_FLAG="-I$ARDUINO_DIR"
+FORMAT_SCRIPT="$REPO_ROOT/scripts/format_wokwi_report.py"
+SUITE_REPORT="$ARDUINO_TESTS_DIR/wokwi-suite-report.log"
 
 if ! command -v arduino-cli >/dev/null 2>&1; then
   echo "arduino-cli not found on PATH" >&2
@@ -30,6 +32,8 @@ fi
 
 arduino-cli lib install "AUnit" || true
 
+python "$FORMAT_SCRIPT" --init-suite --suite-report "$SUITE_REPORT"
+
 failed=()
 
 for project in "$ARDUINO_TESTS_DIR"/test_*/; do
@@ -46,14 +50,20 @@ for project in "$ARDUINO_TESTS_DIR"/test_*/; do
 
   echo "Running Wokwi simulation for $name..."
   log_file="$project/wokwi-report.log"
-  if (
+  wokwi_exit=0
+  (
     cd "$project"
     wokwi-cli . --scenario aunit.test.yaml --timeout "$TIMEOUT_MS" --serial-log-file wokwi-report.log
-  ); then
-    echo "PASS: $name (report: $log_file)"
-  else
+  ) || wokwi_exit=$?
+
+  if ! python "$FORMAT_SCRIPT" "$name" "$log_file" "$wokwi_exit" --suite-report "$SUITE_REPORT"; then
+    failed+=("$name (report)")
+    echo "FAIL: $name (see $log_file)" >&2
+  elif [[ "$wokwi_exit" -ne 0 ]]; then
     failed+=("$name (wokwi)")
     echo "FAIL: $name (see $log_file)" >&2
+  else
+    echo "PASS: $name (report: $log_file)"
   fi
 done
 
@@ -63,3 +73,4 @@ if ((${#failed[@]} > 0)); then
 fi
 
 echo "All Wokwi AUnit tests passed."
+echo "Suite report: $SUITE_REPORT"
