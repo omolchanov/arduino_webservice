@@ -1,3 +1,5 @@
+#include "sensor_math.h"
+
 #define TRIG_PIN 9
 #define ECHO_PIN 10
 #define LDR_PIN A0
@@ -17,21 +19,19 @@ void loop() {
   digitalWrite(TRIG_PIN, LOW);
 
   long duration = pulseIn(ECHO_PIN, HIGH);
-  float distance = duration * 0.0343 / 2;
+  float distance = distanceCm(duration);
 
   Serial.print("Distance: ");
   Serial.print(distance, 1);
   Serial.println(" cm");
 
-  int light = analogRead(LDR_PIN);
-  light = 1023 - light;
+  int light = invertLight(analogRead(LDR_PIN));
 
   Serial.print("Light: ");
   Serial.println(light);
 
   int lm35Value = analogRead(LM35_PIN);
-  float voltage = lm35Value * 5.0 / 1023.0;
-  float temperature = voltage * 100.0 / 2;
+  float temperature = tempC(lm35Value);
 
   Serial.print("Temperature: ");
   Serial.print(temperature, 1);

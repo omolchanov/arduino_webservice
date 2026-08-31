@@ -6,7 +6,7 @@ $ComPort = "COM8"
 
 function Get-UvicornProcessIds {
     $ids = @()
-    foreach ($proc in Get-CimInstance Win32_Process -Filter "Name='python.exe'") {
+    foreach ($proc in Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='uvicorn.exe'") {
         $cmd = $proc.CommandLine
         if (-not $cmd) { continue }
         if (

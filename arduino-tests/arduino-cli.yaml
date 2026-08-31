@@ -1,0 +1,4 @@
+board_options:
+  board: arduino:avr:uno
+build_properties:
+  compiler.cpp.extra_flags: "-I../arduino"
