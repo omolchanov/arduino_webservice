@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches:
+      - master
       - "feature-*"
 
 jobs:
@@ -25,9 +26,25 @@ jobs:
       - name: Run Python API tests
         run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts
 
+  arduino-tests:
+    name: Arduino tests
+    needs: python-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup EpoxyDuino and AUnit
+        run: |
+          cd ..
+          git clone --depth 1 https://github.com/bxparks/AUnit
+          git clone --depth 1 https://github.com/bxparks/EpoxyDuino
+
+      - name: Run AUnit tests (native)
+        run: make -C arduino-tests runtests
+
   arduino-compile:
     name: Arduino compile
-    needs: python-tests
+    needs: arduino-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

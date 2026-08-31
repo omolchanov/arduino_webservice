@@ -1,4 +1,4 @@
-#include <AUnit.h>
+#include <AUnitVerbose.h>
 #include "sensor_math.h"
 
 using namespace aunit;
@@ -18,8 +18,17 @@ test(temp_c) {
 }
 
 void setup() {
-  Serial.begin(9600);
+#if !defined(EPOXY_DUINO)
   delay(2000);
+#endif
+  Serial.begin(9600);
+#if !defined(EPOXY_DUINO)
+  while (!Serial);
+#endif
+#if defined(EPOXY_DUINO)
+  Serial.setLineModeUnix();
+#endif
+  TestRunner::setVerbosity(Verbosity::kAll);
 }
 
 void loop() {
