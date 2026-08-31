@@ -68,6 +68,7 @@ for toml in "$ARDUINO_DIR"/*/wokwi.toml; do
       --timeout "$TIMEOUT_MS" \
       --serial-log-file wokwi-report.log
   ) || wokwi_exit=$?
+  echo "$wokwi_exit" > "$sketch_dir/wokwi-exit.code"
 
   if [[ "$wokwi_exit" -ne 0 ]]; then
     failed+=("$name (wokwi)")

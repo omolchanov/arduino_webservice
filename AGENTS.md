@@ -59,6 +59,8 @@ powershell -File scripts/wokwi_integration_test.ps1
 
 `wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run.
 
+On GitHub Actions, open the workflow run and check the **Summary** tab for the inline Wokwi report (pass/fail table and expandable serial logs). A full HTML report is also attached as the `wokwi-integration-report` artifact.
+
 Close Arduino Serial Monitor before running tests or starting uvicorn.
 
 ## OpenSpec workflow
