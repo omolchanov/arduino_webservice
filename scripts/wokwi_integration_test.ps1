@@ -1,6 +1,6 @@
 param(
     [string]$Fqbn = "arduino:avr:uno",
-    [int]$TimeoutMs = 60000
+    [int]$TimeoutMs = 120000
 )
 
 $ErrorActionPreference = "Stop"

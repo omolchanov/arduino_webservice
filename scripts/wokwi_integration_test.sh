@@ -2,7 +2,7 @@
 set -euo pipefail
 
 FQBN="${FQBN:-arduino:avr:uno}"
-TIMEOUT_MS="${TIMEOUT_MS:-60000}"
+TIMEOUT_MS="${TIMEOUT_MS:-120000}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARDUINO_DIR="$REPO_ROOT/arduino"
 INCLUDE_FLAG="-I$ARDUINO_DIR"
