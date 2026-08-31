@@ -56,13 +56,15 @@ foreach ($project in $testProjects) {
     }
 
     Write-Host "Running Wokwi simulation for $name..."
+    $logFile = Join-Path $project.FullName "wokwi-report.log"
     Push-Location $project.FullName
     try {
-        & wokwi-cli . --scenario aunit.test.yaml --timeout $TimeoutMs
+        & wokwi-cli . --scenario aunit.test.yaml --timeout $TimeoutMs --serial-log-file wokwi-report.log
         if ($LASTEXITCODE -ne 0) {
             $failed += "$name (wokwi)"
+            Write-Host "FAIL: $name (see $logFile)"
         } else {
-            Write-Host "PASS: $name"
+            Write-Host "PASS: $name (report: $logFile)"
         }
     } finally {
         Pop-Location

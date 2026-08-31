@@ -35,6 +35,7 @@ Arduino AUnit on Wokwi (simulated Uno, no board; requires internet):
 # Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)
 $env:WOKWI_CLI_TOKEN = "your-token"
 powershell -File scripts/wokwi_test.ps1
+# Serial reports: arduino-tests/test_*/wokwi-report.log
 ```
 
 EpoxyDuino native AUnit (host, offline; clone EpoxyDuino + AUnit one level above repo):

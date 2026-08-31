@@ -4,3 +4,4 @@ __pycache__/
 venv/
 .tools/
 arduino-tests/**/build/
+arduino-tests/**/wokwi-report.log
