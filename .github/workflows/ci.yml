@@ -42,7 +42,7 @@ jobs:
         run: make -C arduino-tests runtests
 
   arduino-integration-tests:
-    name: Arduino integration tests
+    name: Arduino Integration test - Valves
     needs: arduino-unit-tests
     runs-on: ubuntu-latest
     steps:
