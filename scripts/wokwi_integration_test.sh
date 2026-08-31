@@ -60,23 +60,19 @@ for toml in "$ARDUINO_DIR"/*/wokwi.toml; do
   fi
 
   echo "Uploading diagram.json and firmware to Wokwi Simulation API..."
-  wokwi_exit=0
-  (
+  if ! (
     cd "$sketch_dir"
-    set -o pipefail
     wokwi-cli . \
       --scenario "$scenario_name" \
       --timeout "$TIMEOUT_MS" \
-      --serial-log-file wokwi-report.log 2>&1 | tee wokwi-cli.log
-  ) || wokwi_exit=$?
-  echo "$wokwi_exit" > "$sketch_dir/wokwi-exit.code"
-
-  if [[ "$wokwi_exit" -ne 0 ]]; then
+      --serial-log-file wokwi-report.log
+  ); then
     failed+=("$name (wokwi)")
     echo "FAIL: $name (see $log_file)" >&2
-  else
-    echo "PASS: $name (report: $log_file)"
+    continue
   fi
+
+  echo "PASS: $name (report: $log_file)"
 done
 
 if ((${#failed[@]} > 0)); then
