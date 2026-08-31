@@ -70,3 +70,37 @@ jobs:
           for dir in arduino-tests/test_*/; do
             arduino-cli compile -b "$FQBN" "$dir" --build-property "compiler.cpp.extra_flags=$INCLUDE"
           done
+
+  arduino-wokwi:
+    name: Arduino Wokwi
+    needs: arduino-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Install AVR core and AUnit
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli lib install "AUnit"
+
+      - name: Install Wokwi CLI
+        run: curl -L https://wokwi.com/ci/install.sh | sh
+
+      - name: Run Wokwi AUnit suite
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+        run: |
+          export PATH="$HOME/.wokwi/bin:$PATH"
+          bash scripts/wokwi_test.sh
+
+      - name: Upload Wokwi serial reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wokwi-reports
+          path: arduino-tests/**/wokwi-report.log
+          if-no-files-found: ignore
