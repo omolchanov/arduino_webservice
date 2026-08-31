@@ -19,13 +19,28 @@ uvicorn main:app --reload
 python -m pytest pytest/
 ```
 
-Arduino firmware logic (AUnit + arduino-cli, requires board on COM8):
+Arduino firmware logic (AUnit + arduino-cli):
 
 ```bash
 arduino-cli core install arduino:avr
 arduino-cli lib install "AUnit"
 powershell -File scripts/arduino_test.ps1 -CompileOnly
 powershell -File scripts/arduino_test.ps1 -Port COM8
+```
+
+Arduino AUnit on Wokwi (simulated Uno, no board; requires internet):
+
+```powershell
+# Install Wokwi CLI: iwr https://wokwi.com/ci/install.ps1 -useb | iex
+# Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)
+$env:WOKWI_CLI_TOKEN = "your-token"
+powershell -File scripts/wokwi_test.ps1
+```
+
+EpoxyDuino native AUnit (host, offline; clone EpoxyDuino + AUnit one level above repo):
+
+```bash
+make -C arduino-tests runtests
 ```
 
 Close Arduino Serial Monitor before running tests or starting uvicorn.

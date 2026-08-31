@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/test_measurement.ino.hex"
+elf = "build/test_measurement.ino.elf"
