@@ -1,15 +1,13 @@
+#include "valve_logic.h"
+
 const int INPUT_A = 2;
 const int INPUT_B = 3;
 const int OUTPUT_Y = 9;
 
-// Выбранный логический вентиль
-// По умолчанию AND
 String selectedGate = "AND";
 
-// Время последнего вывода
 unsigned long lastPrintTime = 0;
 
-// Вывод состояния раз в секунду
 const unsigned long printInterval = 1000;
 
 void setup() {
@@ -39,15 +37,10 @@ void setup() {
 
 void loop() {
 
-  // ==========================================
-  // Выбор логического вентиля
-  // ==========================================
-
   if (Serial.available() > 0) {
 
     String command = Serial.readStringUntil('\n');
 
-    // Убираем пробелы и переводим в верхний регистр
     command.trim();
     command.toUpperCase();
 
@@ -72,79 +65,12 @@ void loop() {
     }
   }
 
-  // ==========================================
-  // Читаем входы
-  // ==========================================
-
-  // INPUT_PULLUP:
-  // кнопка нажата  -> LOW
-  // кнопка отпущена -> HIGH
-  //
-  // Поэтому инвертируем:
-  // нажата -> 1
-  // отпущена -> 0
-
   bool A = !digitalRead(INPUT_A);
   bool B = !digitalRead(INPUT_B);
 
-  // ==========================================
-  // Логический вентиль
-  // ==========================================
-
-  bool Y;
-
-  if (selectedGate == "AND") {
-
-    // И
-    Y = A && B;
-  }
-
-  else if (selectedGate == "OR") {
-
-    // ИЛИ
-    Y = A || B;
-  }
-
-  else if (selectedGate == "NOT") {
-
-    // НЕ
-    // Используем только вход A
-    Y = !A;
-  }
-
-  else if (selectedGate == "NAND") {
-
-    // И-НЕ
-    Y = !(A && B);
-  }
-
-  else if (selectedGate == "NOR") {
-
-    // ИЛИ-НЕ
-    Y = !(A || B);
-  }
-
-  else if (selectedGate == "XOR") {
-
-    // Исключающее ИЛИ
-    Y = A ^ B;
-  }
-
-  else if (selectedGate == "XNOR") {
-
-    // Исключающее ИЛИ-НЕ
-    Y = !(A ^ B);
-  }
-
-  // ==========================================
-  // Управляем LED
-  // ==========================================
+  bool Y = evalGate(selectedGate.c_str(), A, B);
 
   digitalWrite(OUTPUT_Y, Y);
-
-  // ==========================================
-  // Выводим состояние раз в секунду
-  // ==========================================
 
   if (millis() - lastPrintTime >= printInterval) {
 

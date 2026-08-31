@@ -13,6 +13,23 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
+## Tests
+
+```bash
+python -m pytest pytest/
+```
+
+Arduino firmware logic (AUnit + arduino-cli, requires board on COM8):
+
+```bash
+arduino-cli core install arduino:avr
+arduino-cli lib install "AUnit"
+powershell -File scripts/arduino_test.ps1 -CompileOnly
+powershell -File scripts/arduino_test.ps1 -Port COM8
+```
+
+Close Arduino Serial Monitor before running tests or starting uvicorn.
+
 ## OpenSpec workflow
 
 1. `/opsx:propose <change-name>` — create proposal, design, tasks, specs
@@ -25,3 +42,5 @@ uvicorn main:app --reload
 - No MVC folders unless a change explicitly requires it
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
+- `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit tests
+- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`

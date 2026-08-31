@@ -1,3 +1,5 @@
+#include "measurement.h"
+
 #define SIGNAL_PIN 8
 #define POT_PIN A0
 #define LED_PIN 9
@@ -31,10 +33,6 @@ void setup() {
 
 void loop() {
 
-  // ==========================================
-  // 1. Обрабатываем кнопку постоянно
-  // ==========================================
-
   bool reading = digitalRead(BUTTON_PIN);
 
   if (reading != lastButtonReading) {
@@ -47,7 +45,6 @@ void loop() {
 
       buttonState = reading;
 
-      // Кнопка нажата
       if (buttonState == LOW) {
 
         signalState = !signalState;
@@ -59,45 +56,30 @@ void loop() {
 
   lastButtonReading = reading;
 
-
-  // ==========================================
-  // 2. Измерения раз в секунду
-  // ==========================================
-
   if (millis() - lastMeasurementTime >= measurementInterval) {
 
     lastMeasurementTime = millis();
 
-
-    // ========================================
-    // Считываем потенциометр
-    // ========================================
-
     int analogValue = analogRead(POT_PIN);
 
-    float voltage = analogValue * 5.0 / 1023.0;
-
-
-    // ========================================
-    // Определяем логическую зону
-    // ========================================
+    float voltage = adcToVolts(analogValue);
 
     String logicState;
 
     int brightness = 0;
 
-    if (voltage < 1.5) {
+    float zone = logicZone(voltage);
 
-      // LOW
+    if (zone == 0.0f) {
+
       logicState = "0 (LOW)";
 
       analogWrite(LED_PIN, 0);
 
     }
 
-    else if (voltage < 3.0) {
+    else if (zone == 0.5f) {
 
-      // UNDEFINED
       logicState = "UNDEFINED";
 
       undefinedLedState = !undefinedLedState;
@@ -113,7 +95,6 @@ void loop() {
 
     else {
 
-      // HIGH
       logicState = "1 (HIGH)";
 
       brightness = map(
@@ -127,27 +108,17 @@ void loop() {
       analogWrite(LED_PIN, brightness);
     }
 
-
-    // ========================================
-    // Измеряем ток
-    // ========================================
-
     int currentADC = analogRead(CURRENT_PIN);
 
-    float shuntVoltage = currentADC * 5.0 / 1023.0;
+    float shuntVoltage = adcToVolts(currentADC);
 
     float current = shuntVoltage / SHUNT_RESISTOR;
 
-    float current_mA = current * 1000.0;
-
-
-    // ========================================
-    // Измеряем напряжение на LED
-    // ========================================
+    float current_mA = currentMa(currentADC, SHUNT_RESISTOR);
 
     int ledVoltageADC = analogRead(LED_VOLTAGE_PIN);
 
-    float d9Voltage = ledVoltageADC * 5.0 / 1023.0;
+    float d9Voltage = adcToVolts(ledVoltageADC);
 
     float ledVoltage = d9Voltage - shuntVoltage;
 
@@ -155,21 +126,7 @@ void loop() {
       ledVoltage = 0;
     }
 
-
-    // ========================================
-    // Рассчитываем сопротивление LED
-    // ========================================
-
-    float ledResistance = 0;
-
-    if (current > 0.0001) {
-      ledResistance = ledVoltage / current;
-    }
-
-
-    // ========================================
-    // Serial Monitor
-    // ========================================
+    float ledResistanceValue = ledResistance(ledVoltage, current);
 
     Serial.print("Signal: ");
     Serial.print(signalState ? "1" : "0");
@@ -190,7 +147,7 @@ void loop() {
     Serial.print(" mA");
 
     Serial.print(" | LED Resistance: ");
-    Serial.print(ledResistance, 1);
+    Serial.print(ledResistanceValue, 1);
     Serial.println(" Ohm");
   }
 }

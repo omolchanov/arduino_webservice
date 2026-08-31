@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "feature-*"
+
+jobs:
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Python API tests
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts
+
+  arduino-compile:
+    name: Arduino compile
+    needs: python-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Install AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Install AUnit library
+        run: arduino-cli lib install "AUnit"
+
+      - name: Compile sketches and tests
+        shell: bash
+        run: |
+          INCLUDE="-I${{ github.workspace }}/arduino"
+          FQBN="arduino:avr:uno"
+          arduino-cli compile -b "$FQBN" arduino/valves --build-property "compiler.cpp.extra_flags=$INCLUDE"
+          arduino-cli compile -b "$FQBN" arduino/simple01 --build-property "compiler.cpp.extra_flags=$INCLUDE"
+          arduino-cli compile -b "$FQBN" arduino/sensors --build-property "compiler.cpp.extra_flags=$INCLUDE"
+          for dir in arduino-tests/test_*/; do
+            arduino-cli compile -b "$FQBN" "$dir" --build-property "compiler.cpp.extra_flags=$INCLUDE"
+          done
