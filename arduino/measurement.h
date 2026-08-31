@@ -30,4 +30,18 @@ inline float ledResistance(float ledVoltage, float currentA) {
   return ledVoltage / currentA;
 }
 
+#define POT_BRIGHTNESS_MIN_ADC 614
+#define POT_BRIGHTNESS_MAX_ADC 1023
+
+inline int brightnessForPot(int adc) {
+  if (adc < POT_BRIGHTNESS_MIN_ADC) {
+    return 0;
+  }
+  if (adc >= POT_BRIGHTNESS_MAX_ADC) {
+    return 255;
+  }
+  return (adc - POT_BRIGHTNESS_MIN_ADC) * 255 /
+         (POT_BRIGHTNESS_MAX_ADC - POT_BRIGHTNESS_MIN_ADC);
+}
+
 #endif

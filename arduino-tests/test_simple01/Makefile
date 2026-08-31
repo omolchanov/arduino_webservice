@@ -1,5 +1,5 @@
-APP_NAME := test_valve_logic
+APP_NAME := test_simple01
 ARDUINO_LIBS := AUnit
 EXTRA_CPPFLAGS := -I../../arduino
-DEPS := ../../arduino/valve_logic.h
+DEPS := ../../arduino/measurement.h
 include ../../../EpoxyDuino/EpoxyDuino.mk

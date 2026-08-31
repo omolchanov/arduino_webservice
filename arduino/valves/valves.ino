@@ -44,14 +44,7 @@ void loop() {
     command.trim();
     command.toUpperCase();
 
-    if (command == "AND" ||
-        command == "OR" ||
-        command == "NOT" ||
-        command == "NAND" ||
-        command == "NOR" ||
-        command == "XOR" ||
-        command == "XNOR") {
-
+    if (isValidGateCommand(command.c_str())) {
       selectedGate = command;
 
       Serial.print("Выбран вентиль: ");
