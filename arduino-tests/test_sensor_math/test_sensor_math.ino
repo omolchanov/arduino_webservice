@@ -1,4 +1,4 @@
-#include <AUnitVerbose.h>
+#include <AUnit.h>
 #include "sensor_math.h"
 
 using namespace aunit;
@@ -28,7 +28,7 @@ void setup() {
 #if defined(EPOXY_DUINO)
   Serial.setLineModeUnix();
 #endif
-  TestRunner::setVerbosity(Verbosity::kAll);
+  TestRunner::setVerbosity(Verbosity::kDefault);
 }
 
 void loop() {

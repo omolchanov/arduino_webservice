@@ -1,4 +1,4 @@
-#include <AUnitVerbose.h>
+#include <AUnit.h>
 #include "valve_logic.h"
 
 using namespace aunit;
@@ -63,7 +63,7 @@ void setup() {
 #if defined(EPOXY_DUINO)
   Serial.setLineModeUnix();
 #endif
-  TestRunner::setVerbosity(Verbosity::kAll);
+  TestRunner::setVerbosity(Verbosity::kDefault);
 }
 
 void loop() {
