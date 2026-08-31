@@ -70,8 +70,10 @@ Get-ChildItem -Path $ArduinoDir -Directory | ForEach-Object {
         }
 
         Write-Host "Uploading diagram.json and firmware to Wokwi Simulation API..."
-        & wokwi-cli . --scenario $scenario.Name --timeout $TimeoutMs --serial-log-file wokwi-report.log
+        $cliLog = Join-Path $sketchDir "wokwi-cli.log"
+        $cliOutput = & wokwi-cli . --scenario $scenario.Name --timeout $TimeoutMs --serial-log-file wokwi-report.log 2>&1
         $wokwiExit = $LASTEXITCODE
+        $cliOutput | Set-Content -Path $cliLog -Encoding utf8
         Set-Content -Path (Join-Path $sketchDir "wokwi-exit.code") -Value $wokwiExit -NoNewline
         if ($wokwiExit -ne 0) {
             $failed += "$name (wokwi)"

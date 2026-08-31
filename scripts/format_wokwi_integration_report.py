@@ -8,42 +8,73 @@ from pathlib import Path
 
 SCENARIO_OK = re.compile(r"Scenario completed successfully", re.IGNORECASE)
 SCENARIO_FAIL = re.compile(r"(FAIL|Error|Timeout|did not finish)", re.IGNORECASE)
-MATCHED_LINE = re.compile(r"Expected text matched:\s*\"(.+)\"", re.IGNORECASE)
+MATCHED_LINE = re.compile(r"Expected text matched:\s*\"([^\"]+)\"", re.IGNORECASE)
+WAIT_SERIAL_LINE = re.compile(r"^\s*-\s+wait-serial:\s*", re.MULTILINE)
 
 
-def infer_status(serial: str, wokwi_exit: int | None) -> bool:
+def find_integration_scenario(sketch_dir: Path) -> Path | None:
+    matches = sorted(sketch_dir.glob("*.integration.yaml"))
+    return matches[0] if matches else None
+
+
+def count_expected_serial_checks(scenario_path: Path | None) -> int:
+    if scenario_path is None or not scenario_path.exists():
+        return 0
+    text = scenario_path.read_text(encoding="utf-8", errors="replace")
+    return len(WAIT_SERIAL_LINE.findall(text))
+
+
+def parse_cli_matches(cli_text: str) -> list[str]:
+    return MATCHED_LINE.findall(cli_text)
+
+
+def infer_status(serial: str, cli_text: str, wokwi_exit: int | None) -> bool:
+    combined = f"{serial}\n{cli_text}"
     if wokwi_exit is not None and wokwi_exit != 0:
         return False
-    if SCENARIO_OK.search(serial):
+    if SCENARIO_OK.search(combined):
         return True
-    if not serial.strip():
+    if not serial.strip() and not cli_text.strip():
         return False
-    if SCENARIO_FAIL.search(serial):
+    if SCENARIO_FAIL.search(combined):
         return False
     return wokwi_exit == 0 if wokwi_exit is not None else False
+
+
+def format_step_count(matched: int, expected: int) -> str:
+    if expected > 0:
+        return f"{matched}/{expected}"
+    return str(matched)
 
 
 def collect_reports(arduino_dir: Path) -> list[dict]:
     reports: list[dict] = []
     for log_path in sorted(arduino_dir.glob("*/wokwi-report.log")):
-        sketch = log_path.parent.name
+        sketch_dir = log_path.parent
+        sketch = sketch_dir.name
         serial = log_path.read_text(encoding="utf-8", errors="replace")
-        status_path = log_path.parent / "wokwi-exit.code"
+        cli_path = sketch_dir / "wokwi-cli.log"
+        cli_text = cli_path.read_text(encoding="utf-8", errors="replace") if cli_path.exists() else ""
+        scenario_path = find_integration_scenario(sketch_dir)
+        expected_checks = count_expected_serial_checks(scenario_path)
+        status_path = sketch_dir / "wokwi-exit.code"
         wokwi_exit = None
         if status_path.exists():
             try:
                 wokwi_exit = int(status_path.read_text(encoding="utf-8").strip())
             except ValueError:
                 wokwi_exit = 1
-        passed = infer_status(serial, wokwi_exit)
-        matches = MATCHED_LINE.findall(serial)
+        passed = infer_status(serial, cli_text, wokwi_exit)
+        matches = parse_cli_matches(cli_text)
         reports.append(
             {
                 "sketch": sketch,
                 "log_path": log_path,
                 "serial": serial,
+                "cli_text": cli_text,
                 "passed": passed,
                 "matches": matches,
+                "expected_checks": expected_checks,
                 "wokwi_exit": wokwi_exit,
             }
         )
@@ -60,28 +91,40 @@ def build_html(reports: list[dict]) -> str:
     for report in reports:
         mark = "PASS" if report["passed"] else "FAIL"
         row_class = "pass" if report["passed"] else "fail"
+        steps = step_count_for_summary(report)
         rows.append(
             f"<tr class='{row_class}'>"
             f"<td>{html.escape(report['sketch'])}</td>"
             f"<td><strong>{mark}</strong></td>"
-            f"<td>{len(report['matches'])}</td>"
+            f"<td>{html.escape(steps)}</td>"
             f"</tr>"
         )
 
     sections = []
     for report in reports:
+        match_items = report["matches"]
+        if not match_items and report["passed"] and report["expected_checks"] > 0:
+            match_items = [
+                f"All {report['expected_checks']} wait-serial checks passed (see scenario YAML)"
+            ]
         sections.append(
             "<section>"
             f"<h2>{html.escape(report['sketch'])}</h2>"
             f"<p>Status: <strong>{'PASS' if report['passed'] else 'FAIL'}</strong></p>"
             "<h3>Matched serial expectations</h3>"
             "<ul>"
-            + "".join(f"<li><code>{html.escape(m)}</code></li>" for m in report["matches"])
-            + ("<li><em>None captured</em></li>" if not report["matches"] else "")
+            + "".join(f"<li><code>{html.escape(m)}</code></li>" for m in match_items)
+            + ("<li><em>None captured</em></li>" if not match_items else "")
             + "</ul>"
-            "<h3>Serial output</h3>"
+            "<h3>Firmware serial output</h3>"
             f"<pre>{html.escape(report['serial'].rstrip())}</pre>"
-            "</section>"
+            + (
+                "<h3>Wokwi CLI output</h3>"
+                f"<pre>{html.escape(report['cli_text'].rstrip())}</pre>"
+                if report["cli_text"].strip()
+                else ""
+            )
+            + "</section>"
         )
 
     body = f"""<!DOCTYPE html>
@@ -112,7 +155,7 @@ def build_html(reports: list[dict]) -> str:
   <p class="meta">Generated {generated}</p>
   <p><span class="overall {status_class}">{status_label}</span></p>
   <table>
-    <thead><tr><th>Sketch</th><th>Result</th><th>Matched steps</th></tr></thead>
+    <thead><tr><th>Sketch</th><th>Result</th><th>Serial checks</th></tr></thead>
     <tbody>
       {''.join(rows) if rows else "<tr><td colspan='3'><em>No reports found</em></td></tr>"}
     </tbody>
@@ -124,6 +167,13 @@ def build_html(reports: list[dict]) -> str:
     return body
 
 
+def step_count_for_summary(report: dict) -> str:
+    matched = len(report["matches"])
+    if matched == 0 and report["passed"] and report["expected_checks"] > 0:
+        matched = report["expected_checks"]
+    return format_step_count(matched, report["expected_checks"])
+
+
 def build_github_summary(reports: list[dict], html_path: Path) -> str:
     overall = all(r["passed"] for r in reports) if reports else False
     lines = [
@@ -131,17 +181,17 @@ def build_github_summary(reports: list[dict], html_path: Path) -> str:
         "",
         f"**Overall:** {'PASS' if overall else 'FAIL'}",
         "",
-        "| Sketch | Result | Matched steps |",
+        "| Sketch | Result | Serial checks |",
         "| --- | --- | --- |",
     ]
     for report in reports:
         mark = "PASS" if report["passed"] else "FAIL"
-        lines.append(f"| {report['sketch']} | **{mark}** | {len(report['matches'])} |")
+        lines.append(f"| {report['sketch']} | **{mark}** | {step_count_for_summary(report)} |")
 
     lines.extend(["", f"Full HTML report: `{html_path.as_posix()}` (also attached as a workflow artifact).", ""])
 
     for report in reports:
-        lines.append(f"<details><summary><strong>{html.escape(report['sketch'])}</strong> serial log</summary>")
+        lines.append(f"<details><summary><strong>{html.escape(report['sketch'])}</strong> firmware serial log</summary>")
         lines.append("")
         lines.append("```text")
         lines.append(report["serial"].rstrip() or "(empty)")

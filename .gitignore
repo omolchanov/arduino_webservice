@@ -8,5 +8,6 @@ arduino-tests/**/wokwi-report.log
 arduino-tests/wokwi-suite-report.log
 arduino/**/build/
 arduino/**/wokwi-report.log
+arduino/**/wokwi-cli.log
 arduino/**/wokwi-exit.code
 arduino/wokwi-integration-report.html

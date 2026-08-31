@@ -63,10 +63,11 @@ for toml in "$ARDUINO_DIR"/*/wokwi.toml; do
   wokwi_exit=0
   (
     cd "$sketch_dir"
+    set -o pipefail
     wokwi-cli . \
       --scenario "$scenario_name" \
       --timeout "$TIMEOUT_MS" \
-      --serial-log-file wokwi-report.log
+      --serial-log-file wokwi-report.log 2>&1 | tee wokwi-cli.log
   ) || wokwi_exit=$?
   echo "$wokwi_exit" > "$sketch_dir/wokwi-exit.code"
 
