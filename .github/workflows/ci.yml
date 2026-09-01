@@ -22,8 +22,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Python API tests
-        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts
+      - name: Run display dashboard Python tests
+        run: python -m pytest pytest/test_display.py -v
+
+      - name: Run other Python API tests
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py -v
 
   arduino-unit-tests:
     name: Arduino unit tests
@@ -38,8 +41,20 @@ jobs:
           git clone --depth 1 https://github.com/bxparks/AUnit
           git clone --depth 1 https://github.com/bxparks/EpoxyDuino
 
-      - name: Run AUnit unit tests (native)
-        run: make -C arduino-tests runtests
+      - name: Run mulie_function AUnit tests
+        run: make -C arduino-tests/test_mulie_function run
+
+      - name: Run other AUnit unit tests
+        run: |
+          set -e
+          for makefile in arduino-tests/test_*/Makefile; do
+            dir=$(dirname "$makefile")
+            name=$(basename "$dir")
+            if [ "$name" != "test_mulie_function" ]; then
+              echo "==== $name"
+              make -C "$dir" run
+            fi
+          done
 
   arduino-integration-tests:
     name: Arduino Integration test - Valves

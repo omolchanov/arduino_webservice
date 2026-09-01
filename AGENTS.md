@@ -32,6 +32,7 @@ make -C arduino-tests runtests
 | `arduino/valves/` | `arduino-tests/test_valves/` |
 | `arduino/simple01/` | `arduino-tests/test_simple01/` |
 | `arduino/sensors/` | `arduino-tests/test_sensors/` |
+| `arduino/mulie_function/` | `arduino-tests/test_mulie_function/` |
 
 ### Arduino compile and optional hardware tests
 
@@ -74,4 +75,4 @@ Close Arduino Serial Monitor before running tests or starting uvicorn.
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
 - `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit unit tests
-- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`
+- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`

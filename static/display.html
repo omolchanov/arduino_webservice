@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arduino Sensors</title>
+  <title>Arduino Display</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,7 +54,7 @@
       color: #fff;
       background: #2a2a30;
       border-color: #4a4a55;
-      border-left: 3px solid #60a5fa;
+      border-left: 3px solid #38bdf8;
       padding-left: calc(0.75rem - 2px);
     }
 
@@ -108,7 +108,7 @@
 
     .dashboard {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 1rem;
       align-items: start;
     }
@@ -148,21 +148,65 @@
       flex: 1;
       display: flex;
       flex-direction: column;
+      gap: 1rem;
+    }
+
+    .card-body-value {
       justify-content: center;
       align-items: center;
     }
 
-    .distance-value {
-      font-size: 3.5rem;
+    .display-value {
+      font-size: 4rem;
       font-weight: 700;
       line-height: 1;
-      color: #60a5fa;
+      color: #38bdf8;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.15em;
     }
 
-    .distance-unit {
+    .display-unit {
       font-size: 1rem;
       color: #888;
       margin-top: 0.5rem;
+    }
+
+    .set-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .set-input {
+      flex: 1;
+      font-size: 0.9rem;
+      color: #e8e8e8;
+      background: #252528;
+      border: 1px solid #3a3a42;
+      padding: 0.5rem 0.75rem;
+      font-family: inherit;
+    }
+
+    .set-input:focus {
+      outline: none;
+      border-color: #4a4a55;
+    }
+
+    .btn-set {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #e8e8e8;
+      background: #252528;
+      border: 1px solid #3a3a42;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-set:hover {
+      color: #fff;
+      border-color: #4a4a55;
+      background: #2a2a30;
     }
 
     .notification {
@@ -187,10 +231,10 @@
     <aside class="sidebar">
       <nav>
         <a href="/">Keypad</a>
-        <a href="/sensors" class="active">Sensors</a>
+        <a href="/sensors">Sensors</a>
         <a href="/digital">Digital Signal</a>
         <a href="/valves">Valves</a>
-        <a href="/display">Display</a>
+        <a href="/display" class="active">Display</a>
       </nav>
     </aside>
 
@@ -200,35 +244,36 @@
       </header>
 
       <main class="content">
-      <h1 class="page-title">Sensors</h1>
+        <h1 class="page-title">7-Segment Display</h1>
 
-      <div class="dashboard">
-        <div class="card">
-          <div class="card-header">
-            Distance <span id="distanceDot" class="sensor-status-dot initializing" aria-hidden="true"></span>
+        <div class="dashboard">
+          <div class="card">
+            <div class="card-header">
+              Live value <span id="displayDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="displayValue" class="display-value">000</div>
+              <div class="display-unit">counter (000–999)</div>
+            </div>
           </div>
-          <div class="card-body">
-            <div id="distanceValue" class="distance-value">—</div>
-            <div class="distance-unit">cm</div>
+
+          <div class="card">
+            <div class="card-header">Set value</div>
+            <div class="card-body">
+              <div class="set-row">
+                <input
+                  id="setInput"
+                  class="set-input"
+                  type="number"
+                  min="0"
+                  max="999"
+                  placeholder="0–999"
+                >
+                <button type="button" id="setBtn" class="btn-set">Set</button>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header">
-            Lighting level <span id="lightDot" class="sensor-status-dot initializing" aria-hidden="true"></span>
-          </div>
-          <div class="card-body">
-            <div id="lightValue" class="distance-value">—</div>
-            <div class="distance-unit">units</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header">Temperature</div>
-          <div class="card-body">
-            <div id="temperatureValue" class="distance-value">—</div>
-            <div class="distance-unit">°C</div>
-          </div>
-        </div>
-      </div>
       </main>
     </div>
   </div>
@@ -238,31 +283,23 @@
   <script>
     const SENSOR_PENDING_MS = 10000;
 
-    const distanceValueEl = document.getElementById("distanceValue");
-    const lightValueEl = document.getElementById("lightValue");
-    const temperatureValueEl = document.getElementById("temperatureValue");
+    const displayValueEl = document.getElementById("displayValue");
+    const displayDotEl = document.getElementById("displayDot");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
-    const sensors = {
-      distance: {
-        dotState: "initializing",
-        dotEl: document.getElementById("distanceDot"),
-        pendingTimer: null,
-        pendingState: null,
-        initTimeoutId: null,
-      },
-      light: {
-        dotState: "initializing",
-        dotEl: document.getElementById("lightDot"),
-        pendingTimer: null,
-        pendingState: null,
-        initTimeoutId: null,
-      },
-    };
+    const setInputEl = document.getElementById("setInput");
+    const setBtnEl = document.getElementById("setBtn");
+
     let ws = null;
     let reconnectTimer = null;
     let arduinoOnline = false;
     let serialStatusKnown = false;
+    let displayDotState = "initializing";
+    let displayInitTimeoutId = null;
+
+    function formatDisplay(value) {
+      return String(value).padStart(3, "0");
+    }
 
     function showNotification(message, type = "error") {
       notificationEl.textContent = message;
@@ -270,103 +307,25 @@
       setTimeout(() => notificationEl.classList.remove("show"), 3000);
     }
 
-    function setSensorDot(sensorId, state) {
-      sensors[sensorId].dotEl.className = `sensor-status-dot ${state}`;
+    function setDisplayDot(state) {
+      displayDotState = state;
+      displayDotEl.className = `sensor-status-dot ${state}`;
     }
 
-    function clearPendingTransition(sensor) {
-      if (sensor.pendingTimer) {
-        clearTimeout(sensor.pendingTimer);
-        sensor.pendingTimer = null;
-      }
-      sensor.pendingState = null;
-    }
-
-    function clearInitTimeout(sensor) {
-      if (sensor.initTimeoutId) {
-        clearTimeout(sensor.initTimeoutId);
-        sensor.initTimeoutId = null;
+    function clearDisplayInitTimeout() {
+      if (displayInitTimeoutId) {
+        clearTimeout(displayInitTimeoutId);
+        displayInitTimeoutId = null;
       }
     }
 
-    function clearSensorTimers(sensor) {
-      clearPendingTransition(sensor);
-      clearInitTimeout(sensor);
-    }
-
-    function startSensorTimeouts() {
-      for (const [id, sensor] of Object.entries(sensors)) {
-        if (sensor.dotState !== "initializing") continue;
-        clearInitTimeout(sensor);
-        sensor.initTimeoutId = setTimeout(() => {
-          if (arduinoOnline && sensor.dotState === "initializing") {
-            setSensorStatus(id, "error");
-          }
-        }, SENSOR_PENDING_MS);
-      }
-    }
-
-    function isDistanceValid(cm) {
-      return Number(cm) > 0;
-    }
-
-    function isLightValid(level) {
-      return Number(level) > 0;
-    }
-
-    function setSensorStatus(sensorId, state) {
-      sensors[sensorId].dotState = state;
-      setSensorDot(sensorId, state);
-    }
-
-    function applySensorReading(sensorId, value, live) {
-      if (!arduinoOnline || !live) return;
-      const sensor = sensors[sensorId];
-      const valid = sensorId === "distance"
-        ? isDistanceValid(value)
-        : isLightValid(value);
-      const targetState = valid ? "ok" : "error";
-
-      clearInitTimeout(sensor);
-
-      if (sensor.dotState === "initializing") {
-        clearPendingTransition(sensor);
-        setSensorStatus(sensorId, targetState);
-        return;
-      }
-
-      if (targetState === sensor.dotState) {
-        clearPendingTransition(sensor);
-        return;
-      }
-
-      if (sensor.pendingState === targetState) {
-        return;
-      }
-
-      clearPendingTransition(sensor);
-      sensor.pendingState = targetState;
-      sensor.pendingTimer = setTimeout(() => {
-        if (!arduinoOnline) return;
-        setSensorStatus(sensorId, targetState);
-        sensor.pendingState = null;
-        sensor.pendingTimer = null;
+    function startDisplayInitTimeout() {
+      clearDisplayInitTimeout();
+      displayInitTimeoutId = setTimeout(() => {
+        if (arduinoOnline && displayDotState === "initializing") {
+          setDisplayDot("error");
+        }
       }, SENSOR_PENDING_MS);
-    }
-
-    function onArduinoOffline() {
-      for (const [id, sensor] of Object.entries(sensors)) {
-        clearSensorTimers(sensor);
-        setSensorStatus(id, "error");
-      }
-    }
-
-    function onArduinoOnline() {
-      for (const [id, sensor] of Object.entries(sensors)) {
-        clearSensorTimers(sensor);
-        setSensorStatus(id, "initializing");
-      }
-      startSensorTimeouts();
     }
 
     function setStatus(connected) {
@@ -375,22 +334,19 @@
       if (connected === arduinoOnline) return;
       arduinoOnline = connected;
       if (connected) {
-        onArduinoOnline();
+        setDisplayDot("initializing");
+        startDisplayInitTimeout();
       } else {
-        onArduinoOffline();
+        clearDisplayInitTimeout();
+        setDisplayDot("error");
       }
     }
 
-    function setDistance(cm) {
-      distanceValueEl.textContent = Number(cm).toFixed(1);
-    }
-
-    function setLight(level) {
-      lightValueEl.textContent = String(Math.round(level));
-    }
-
-    function setTemperature(c) {
-      temperatureValueEl.textContent = Number(c).toFixed(1);
+    function setDisplayValue(value, live) {
+      displayValueEl.textContent = formatDisplay(value);
+      if (!arduinoOnline || !live) return;
+      clearDisplayInitTimeout();
+      setDisplayDot("ok");
     }
 
     async function pollStatus() {
@@ -398,17 +354,35 @@
         const res = await fetch("/api/status");
         const data = await res.json();
         setStatus(data.serial_connected);
-        if (data.last_distance_cm != null) {
-          setDistance(data.last_distance_cm);
-        }
-        if (data.last_light_level != null) {
-          setLight(data.last_light_level);
-        }
-        if (data.last_temperature_c != null) {
-          setTemperature(data.last_temperature_c);
+        if (data.display_value != null) {
+          setDisplayValue(data.display_value, false);
         }
       } catch {
         setStatus(false);
+      }
+    }
+
+    async function sendDisplayValue() {
+      const value = Number(setInputEl.value);
+      if (!Number.isInteger(value) || value < 0 || value > 999) {
+        showNotification("Enter a value from 0 to 999");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/display/value", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showNotification(data.detail || "Failed to set value");
+          return;
+        }
+        showNotification(`Display set to ${formatDisplay(data.value)}`, "success");
+      } catch {
+        showNotification("Failed to set value");
       }
     }
 
@@ -428,16 +402,8 @@
             serialStatusKnown = true;
             return;
           }
-          if (data.type === "distance" && data.cm != null) {
-            setDistance(data.cm);
-            applySensorReading("distance", data.cm, !data.cached);
-          }
-          if (data.type === "light" && data.level != null) {
-            setLight(data.level);
-            applySensorReading("light", data.level, !data.cached);
-          }
-          if (data.type === "temperature" && data.c != null) {
-            setTemperature(data.c);
+          if (data.type === "display" && data.value != null) {
+            setDisplayValue(Number(data.value), !data.cached);
           }
         } catch {
           showNotification("Invalid message from server");
@@ -458,6 +424,13 @@
     connect();
     pollStatus();
     setInterval(pollStatus, 3000);
+
+    setBtnEl.addEventListener("click", sendDisplayValue);
+    setInputEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        sendDisplayValue();
+      }
+    });
   </script>
 </body>
 </html>

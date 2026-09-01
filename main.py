@@ -36,6 +36,7 @@ POT_PATTERN = re.compile(
 VALVE_PATTERN = re.compile(
     r"^A\s*=\s*(\d)\s*\|\s*B\s*=\s*(\d)\s*\|\s*Y\s*=\s*(\d)\s*\|\s*Gate\s*=\s*(AND|OR|NOT|NAND|NOR|XOR|XNOR)$"
 )
+DISPLAY_PATTERN = re.compile(r"^Display:\s*(\d{1,3})$")
 VALID_VALVE_GATES = frozenset({"AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"})
 
 clients: list[WebSocket] = []
@@ -54,6 +55,7 @@ last_valve_a: int | None = None
 last_valve_b: int | None = None
 last_valve_y: int | None = None
 last_valve_gate: str | None = None
+last_display_value: int | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -136,6 +138,16 @@ def parse_valve_line(line: str) -> tuple[int, int, int, str] | None:
     )
 
 
+def parse_display_line(line: str) -> int | None:
+    match = DISPLAY_PATTERN.match(line.strip())
+    if not match:
+        return None
+    value = int(match.group(1))
+    if value > 999:
+        return None
+    return value
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -188,6 +200,10 @@ async def broadcast_valve(a: int, b: int, y: int, gate: str) -> None:
     await broadcast_message(
         json.dumps({"type": "valve", "a": a, "b": b, "y": y, "gate": gate})
     )
+
+
+async def broadcast_display(value: int) -> None:
+    await broadcast_message(json.dumps({"type": "display", "value": value}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -273,10 +289,28 @@ def notify_valve(a: int, b: int, y: int, gate: str) -> None:
         asyncio.run_coroutine_threadsafe(broadcast_valve(a, b, y, gate), event_loop)
 
 
+def notify_display(value: int) -> None:
+    global last_display_value
+    last_display_value = value
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_display(value), event_loop)
+
+
 def write_serial_gate(gate: str) -> bool:
     if gate not in VALID_VALVE_GATES:
         return False
     command = f"{gate}\n".encode()
+    with serial_lock:
+        if not serial_connected or serial_port is None or not serial_port.is_open:
+            return False
+        serial_port.write(command)
+        return True
+
+
+def write_serial_display(value: int) -> bool:
+    if value < 0 or value > 999:
+        return False
+    command = f"S{value}\n".encode()
     with serial_lock:
         if not serial_connected or serial_port is None or not serial_port.is_open:
             return False
@@ -353,6 +387,15 @@ def read_serial(port: serial.Serial) -> None:
                 len(clients),
             )
             notify_valve(a, b, y, gate)
+            continue
+        display_value = parse_display_line(line)
+        if display_value is not None:
+            logger.info(
+                "Display: %d (clients: %d)",
+                display_value,
+                len(clients),
+            )
+            notify_display(display_value)
             continue
         key = parse_key_line(line)
         if key:
@@ -451,6 +494,11 @@ async def valves():
     return FileResponse(STATIC_DIR / "valves.html")
 
 
+@app.get("/display")
+async def display():
+    return FileResponse(STATIC_DIR / "display.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -469,6 +517,7 @@ async def status():
         "last_valve_b": last_valve_b,
         "last_valve_y": last_valve_y,
         "last_valve_gate": last_valve_gate,
+        "display_value": last_display_value,
     }
 
 
@@ -480,6 +529,16 @@ async def set_valve_gate(body: dict):
     if not write_serial_gate(gate):
         raise HTTPException(status_code=503, detail="Serial not connected")
     return {"ok": True, "gate": gate}
+
+
+@app.post("/api/display/value")
+async def set_display_value(body: dict):
+    value = body.get("value")
+    if not isinstance(value, int) or value < 0 or value > 999:
+        raise HTTPException(status_code=400, detail="Invalid value")
+    if not write_serial_display(value):
+        raise HTTPException(status_code=503, detail="Serial not connected")
+    return {"ok": True, "value": value}
 
 
 @app.websocket("/ws")
@@ -550,6 +609,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     "gate": last_valve_gate,
                     "cached": True,
                 }
+            )
+        )
+    if last_display_value is not None:
+        await websocket.send_text(
+            json.dumps(
+                {"type": "display", "value": last_display_value, "cached": True}
             )
         )
     try:
