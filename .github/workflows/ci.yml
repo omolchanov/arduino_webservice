@@ -42,7 +42,9 @@ jobs:
           git clone --depth 1 https://github.com/bxparks/EpoxyDuino
 
       - name: Run mulie_function AUnit tests
-        run: make -C arduino-tests/test_mulie_function run
+        run: |
+          make -C arduino-tests/test_mulie_function
+          make -C arduino-tests/test_mulie_function run
 
       - name: Run other AUnit unit tests
         run: |
@@ -52,6 +54,7 @@ jobs:
             name=$(basename "$dir")
             if [ "$name" != "test_mulie_function" ]; then
               echo "==== $name"
+              make -C "$dir"
               make -C "$dir" run
             fi
           done
