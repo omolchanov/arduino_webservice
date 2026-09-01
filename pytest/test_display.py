@@ -1,11 +1,11 @@
 import json
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 import main
-from main import parse_display_line, read_serial, write_serial_display
+from main import parse_display_line, read_serial
 
 
 class ParseDisplayLineTests(unittest.TestCase):
@@ -39,29 +39,6 @@ class ReadSerialDisplayTests(unittest.TestCase):
         mock_notify.assert_called_once_with(42)
 
 
-class WriteSerialDisplayTests(unittest.TestCase):
-    def tearDown(self):
-        main.serial_connected = False
-        main.serial_port = None
-
-    def test_write_display_value(self):
-        port = MagicMock()
-        port.is_open = True
-        main.serial_connected = True
-        main.serial_port = port
-
-        self.assertTrue(write_serial_display(567))
-        port.write.assert_called_once_with(b"S567\n")
-
-    def test_write_invalid_value(self):
-        self.assertFalse(write_serial_display(1000))
-
-    def test_write_when_disconnected(self):
-        main.serial_connected = False
-        main.serial_port = None
-        self.assertFalse(write_serial_display(42))
-
-
 class StatusApiDisplayTests(unittest.TestCase):
     def setUp(self):
         main.last_display_value = 105
@@ -76,38 +53,17 @@ class StatusApiDisplayTests(unittest.TestCase):
         self.assertEqual(data["display_value"], 105)
 
 
-class DisplayValueApiTests(unittest.TestCase):
-    def setUp(self):
-        self.client = TestClient(main.app)
-
-    def tearDown(self):
-        main.serial_connected = False
-        main.serial_port = None
-
-    def test_invalid_value_returns_400(self):
-        response = self.client.post("/api/display/value", json={"value": 1000})
-        self.assertEqual(response.status_code, 400)
-
-    def test_disconnected_returns_503(self):
-        main.serial_connected = False
-        main.serial_port = None
-        response = self.client.post("/api/display/value", json={"value": 42})
-        self.assertEqual(response.status_code, 503)
-
-    @patch("main.write_serial_display", return_value=True)
-    def test_success(self, mock_write):
-        response = self.client.post("/api/display/value", json={"value": 42})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"ok": True, "value": 42})
-        mock_write.assert_called_once_with(42)
-
-
 class DisplayPageTests(unittest.TestCase):
-    def test_display_page_loads(self):
+    def test_mulie_page_loads(self):
         client = TestClient(main.app)
-        response = client.get("/display")
+        response = client.get("/mulie")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
+
+    def test_display_route_removed(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertEqual(response.status_code, 404)
 
 
 class WebSocketDisplayCacheTests(unittest.TestCase):

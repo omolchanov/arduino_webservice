@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arduino Display</title>
+  <title>Mulie Board</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -165,50 +165,6 @@
       letter-spacing: 0.15em;
     }
 
-    .display-unit {
-      font-size: 1rem;
-      color: #888;
-      margin-top: 0.5rem;
-    }
-
-    .set-row {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .set-input {
-      flex: 1;
-      font-size: 0.9rem;
-      color: #e8e8e8;
-      background: #252528;
-      border: 1px solid #3a3a42;
-      padding: 0.5rem 0.75rem;
-      font-family: inherit;
-    }
-
-    .set-input:focus {
-      outline: none;
-      border-color: #4a4a55;
-    }
-
-    .btn-set {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #e8e8e8;
-      background: #252528;
-      border: 1px solid #3a3a42;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      font-family: inherit;
-    }
-
-    .btn-set:hover {
-      color: #fff;
-      border-color: #4a4a55;
-      background: #2a2a30;
-    }
-
     .notification {
       position: fixed;
       bottom: 1.5rem;
@@ -234,7 +190,7 @@
         <a href="/sensors">Sensors</a>
         <a href="/digital">Digital Signal</a>
         <a href="/valves">Valves</a>
-        <a href="/display" class="active">Display</a>
+        <a href="/mulie" class="active">Mulie Board</a>
       </nav>
     </aside>
 
@@ -244,33 +200,15 @@
       </header>
 
       <main class="content">
-        <h1 class="page-title">7-Segment Display</h1>
+        <h1 class="page-title">Mulie Board</h1>
 
         <div class="dashboard">
           <div class="card">
             <div class="card-header">
-              Live value <span id="displayDot" class="sensor-status-dot" aria-hidden="true"></span>
+              Live value from board <span id="displayDot" class="sensor-status-dot" aria-hidden="true"></span>
             </div>
             <div class="card-body card-body-value">
               <div id="displayValue" class="display-value">000</div>
-              <div class="display-unit">counter (000–999)</div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">Set value</div>
-            <div class="card-body">
-              <div class="set-row">
-                <input
-                  id="setInput"
-                  class="set-input"
-                  type="number"
-                  min="0"
-                  max="999"
-                  placeholder="0–999"
-                >
-                <button type="button" id="setBtn" class="btn-set">Set</button>
-              </div>
             </div>
           </div>
         </div>
@@ -287,8 +225,6 @@
     const displayDotEl = document.getElementById("displayDot");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
-    const setInputEl = document.getElementById("setInput");
-    const setBtnEl = document.getElementById("setBtn");
 
     let ws = null;
     let reconnectTimer = null;
@@ -362,30 +298,6 @@
       }
     }
 
-    async function sendDisplayValue() {
-      const value = Number(setInputEl.value);
-      if (!Number.isInteger(value) || value < 0 || value > 999) {
-        showNotification("Enter a value from 0 to 999");
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/display/value", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ value }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          showNotification(data.detail || "Failed to set value");
-          return;
-        }
-        showNotification(`Display set to ${formatDisplay(data.value)}`, "success");
-      } catch {
-        showNotification("Failed to set value");
-      }
-    }
-
     function connect() {
       const protocol = location.protocol === "https:" ? "wss:" : "ws:";
       ws = new WebSocket(`${protocol}//${location.host}/ws`);
@@ -424,13 +336,6 @@
     connect();
     pollStatus();
     setInterval(pollStatus, 3000);
-
-    setBtnEl.addEventListener("click", sendDisplayValue);
-    setInputEl.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        sendDisplayValue();
-      }
-    });
   </script>
 </body>
 </html>

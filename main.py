@@ -306,18 +306,6 @@ def write_serial_gate(gate: str) -> bool:
         serial_port.write(command)
         return True
 
-
-def write_serial_display(value: int) -> bool:
-    if value < 0 or value > 999:
-        return False
-    command = f"S{value}\n".encode()
-    with serial_lock:
-        if not serial_connected or serial_port is None or not serial_port.is_open:
-            return False
-        serial_port.write(command)
-        return True
-
-
 async def consume_keys() -> None:
     while True:
         key = await key_queue.get()
@@ -494,9 +482,9 @@ async def valves():
     return FileResponse(STATIC_DIR / "valves.html")
 
 
-@app.get("/display")
-async def display():
-    return FileResponse(STATIC_DIR / "display.html")
+@app.get("/mulie")
+async def mulie():
+    return FileResponse(STATIC_DIR / "mulie.html")
 
 
 @app.get("/api/status")
@@ -529,16 +517,6 @@ async def set_valve_gate(body: dict):
     if not write_serial_gate(gate):
         raise HTTPException(status_code=503, detail="Serial not connected")
     return {"ok": True, "gate": gate}
-
-
-@app.post("/api/display/value")
-async def set_display_value(body: dict):
-    value = body.get("value")
-    if not isinstance(value, int) or value < 0 or value > 999:
-        raise HTTPException(status_code=400, detail="Invalid value")
-    if not write_serial_display(value):
-        raise HTTPException(status_code=503, detail="Serial not connected")
-    return {"ok": True, "value": value}
 
 
 @app.websocket("/ws")
