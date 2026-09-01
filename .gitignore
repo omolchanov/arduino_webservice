@@ -1,9 +1,12 @@
 __pycache__/
 *.pyc
+.pytest_cache/
 .venv/
 venv/
 .tools/
 arduino-tests/**/build/
+arduino-tests/**/*.o
+arduino-tests/**/*.d
 arduino-tests/**/wokwi-report.log
 arduino-tests/wokwi-suite-report.log
 arduino/**/build/
