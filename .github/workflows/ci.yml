@@ -41,23 +41,25 @@ jobs:
           git clone --depth 1 https://github.com/bxparks/AUnit
           git clone --depth 1 https://github.com/bxparks/EpoxyDuino
 
-      - name: Run mulie_function AUnit tests
+      - name: Run display counter AUnit tests
         run: |
           make -C arduino-tests/test_mulie_function
           make -C arduino-tests/test_mulie_function run
 
-      - name: Run other AUnit unit tests
+      - name: Run valves AUnit tests
         run: |
-          set -e
-          for makefile in arduino-tests/test_*/Makefile; do
-            dir=$(dirname "$makefile")
-            name=$(basename "$dir")
-            if [ "$name" != "test_mulie_function" ]; then
-              echo "==== $name"
-              make -C "$dir"
-              make -C "$dir" run
-            fi
-          done
+          make -C arduino-tests/test_valves
+          make -C arduino-tests/test_valves run
+
+      - name: Run sensors AUnit tests
+        run: |
+          make -C arduino-tests/test_sensors
+          make -C arduino-tests/test_sensors run
+
+      - name: Run digital signal AUnit tests
+        run: |
+          make -C arduino-tests/test_simple01
+          make -C arduino-tests/test_simple01 run
 
   arduino-integration-tests:
     name: Arduino Integration test - Valves
