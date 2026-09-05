@@ -258,6 +258,16 @@
           </div>
 
           <div class="card">
+            <div class="card-header">
+              Clock <span id="clockDot" class="sensor-status-dot" aria-hidden="true"></span>
+            </div>
+            <div class="card-body card-body-value">
+              <div id="clockValue" class="display-value">--:--</div>
+              <div class="display-unit">internal clock (24h)</div>
+            </div>
+          </div>
+
+          <div class="card">
             <div class="card-header">Set value</div>
             <div class="card-body">
               <div class="set-row">
@@ -285,6 +295,8 @@
 
     const displayValueEl = document.getElementById("displayValue");
     const displayDotEl = document.getElementById("displayDot");
+    const clockValueEl = document.getElementById("clockValue");
+    const clockDotEl = document.getElementById("clockDot");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
     const setInputEl = document.getElementById("setInput");
@@ -296,6 +308,8 @@
     let serialStatusKnown = false;
     let displayDotState = "initializing";
     let displayInitTimeoutId = null;
+    let clockDotState = "initializing";
+    let clockInitTimeoutId = null;
 
     function formatDisplay(value) {
       return String(value).padStart(3, "0");
@@ -310,6 +324,11 @@
     function setDisplayDot(state) {
       displayDotState = state;
       displayDotEl.className = `sensor-status-dot ${state}`;
+    }
+
+    function setClockDot(state) {
+      clockDotState = state;
+      clockDotEl.className = `sensor-status-dot ${state}`;
     }
 
     function clearDisplayInitTimeout() {
@@ -328,6 +347,22 @@
       }, SENSOR_PENDING_MS);
     }
 
+    function clearClockInitTimeout() {
+      if (clockInitTimeoutId) {
+        clearTimeout(clockInitTimeoutId);
+        clockInitTimeoutId = null;
+      }
+    }
+
+    function startClockInitTimeout() {
+      clearClockInitTimeout();
+      clockInitTimeoutId = setTimeout(() => {
+        if (arduinoOnline && clockDotState === "initializing") {
+          setClockDot("error");
+        }
+      }, SENSOR_PENDING_MS);
+    }
+
     function setStatus(connected) {
       statusEl.textContent = connected ? "Online" : "Offline";
       statusEl.className = `app-status ${connected ? "online" : "offline"}`;
@@ -335,10 +370,14 @@
       arduinoOnline = connected;
       if (connected) {
         setDisplayDot("initializing");
+        setClockDot("initializing");
         startDisplayInitTimeout();
+        startClockInitTimeout();
       } else {
         clearDisplayInitTimeout();
+        clearClockInitTimeout();
         setDisplayDot("error");
+        setClockDot("error");
       }
     }
 
@@ -349,6 +388,13 @@
       setDisplayDot("ok");
     }
 
+    function setClockTime(time, live) {
+      clockValueEl.textContent = time;
+      if (!arduinoOnline || !live) return;
+      clearClockInitTimeout();
+      setClockDot("ok");
+    }
+
     async function pollStatus() {
       try {
         const res = await fetch("/api/status");
@@ -356,6 +402,9 @@
         setStatus(data.serial_connected);
         if (data.display_value != null) {
           setDisplayValue(data.display_value, false);
+        }
+        if (data.clock_time != null) {
+          setClockTime(data.clock_time, false);
         }
       } catch {
         setStatus(false);
@@ -404,6 +453,9 @@
           }
           if (data.type === "display" && data.value != null) {
             setDisplayValue(Number(data.value), !data.cached);
+          }
+          if (data.type === "clock" && data.time != null) {
+            setClockTime(data.time, !data.cached);
           }
         } catch {
           showNotification("Invalid message from server");

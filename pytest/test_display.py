@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 import main
-from main import parse_display_line, read_serial, write_serial_display
+from main import parse_clock_line, parse_display_line, read_serial, write_serial_display
 
 
 class ParseDisplayLineTests(unittest.TestCase):
@@ -24,6 +24,20 @@ class ParseDisplayLineTests(unittest.TestCase):
         self.assertIsNone(parse_display_line(""))
 
 
+class ParseClockLineTests(unittest.TestCase):
+    def test_valid_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 12:00"), "12:00")
+
+    def test_midnight_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 00:00"), "00:00")
+
+    def test_invalid_clock_lines(self):
+        self.assertIsNone(parse_clock_line("Clock: 25:00"))
+        self.assertIsNone(parse_clock_line("Clock: 12:60"))
+        self.assertIsNone(parse_clock_line("Display: 42"))
+        self.assertIsNone(parse_clock_line(""))
+
+
 class ReadSerialDisplayTests(unittest.TestCase):
     @patch("main.serial_stop")
     @patch("main.notify_display")
@@ -37,6 +51,21 @@ class ReadSerialDisplayTests(unittest.TestCase):
         read_serial(FakePort())
 
         mock_notify.assert_called_once_with(42)
+
+
+class ReadSerialClockTests(unittest.TestCase):
+    @patch("main.serial_stop")
+    @patch("main.notify_clock")
+    def test_clock_line_emits_clock(self, mock_notify, mock_stop):
+        mock_stop.is_set.side_effect = [False, True]
+
+        class FakePort:
+            def readline(self):
+                return b"Clock: 12:00\n"
+
+        read_serial(FakePort())
+
+        mock_notify.assert_called_once_with("12:00")
 
 
 class WriteSerialDisplayTests(unittest.TestCase):
@@ -65,15 +94,22 @@ class WriteSerialDisplayTests(unittest.TestCase):
 class StatusApiDisplayTests(unittest.TestCase):
     def setUp(self):
         main.last_display_value = 105
+        main.last_clock_time = "12:00"
         self.client = TestClient(main.app)
 
     def tearDown(self):
         main.last_display_value = None
+        main.last_clock_time = None
 
     def test_status_includes_display_value(self):
         response = self.client.get("/api/status")
         data = response.json()
         self.assertEqual(data["display_value"], 105)
+
+    def test_status_includes_clock_time(self):
+        response = self.client.get("/api/status")
+        data = response.json()
+        self.assertEqual(data["clock_time"], "12:00")
 
 
 class DisplayValueApiTests(unittest.TestCase):
@@ -113,10 +149,12 @@ class DisplayPageTests(unittest.TestCase):
 class WebSocketDisplayCacheTests(unittest.TestCase):
     def setUp(self):
         main.last_display_value = 123
+        main.last_clock_time = "14:30"
         self.client = TestClient(main.app)
 
     def tearDown(self):
         main.last_display_value = None
+        main.last_clock_time = None
 
     def test_connect_sends_cached_display(self):
         with self.client.websocket_connect("/ws") as ws:
@@ -129,6 +167,18 @@ class WebSocketDisplayCacheTests(unittest.TestCase):
         display = next(m for m in messages if m["type"] == "display")
         self.assertTrue(display["cached"])
         self.assertEqual(display["value"], 123)
+
+    def test_connect_sends_cached_clock(self):
+        with self.client.websocket_connect("/ws") as ws:
+            messages = []
+            while len(messages) < 6:
+                raw = ws.receive_text()
+                messages.append(json.loads(raw))
+                if any(m["type"] == "clock" for m in messages):
+                    break
+        clock = next(m for m in messages if m["type"] == "clock")
+        self.assertTrue(clock["cached"])
+        self.assertEqual(clock["time"], "14:30")
 
 
 class DisplayCounterLogicTests(unittest.TestCase):

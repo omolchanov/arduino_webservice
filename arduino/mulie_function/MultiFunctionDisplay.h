@@ -10,12 +10,15 @@ public:
 
     void begin();
     void show(int number);
+    void showClock(byte hours, byte minutes);
+    void setClockMode(bool enabled);
     void update();
 
 private:
     byte _latchPin;
     byte _clockPin;
     byte _dataPin;
+    bool _clockMode;
 
     byte _digits[4];
 
