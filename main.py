@@ -36,6 +36,9 @@ POT_PATTERN = re.compile(
 VALVE_PATTERN = re.compile(
     r"^A\s*=\s*(\d)\s*\|\s*B\s*=\s*(\d)\s*\|\s*Y\s*=\s*(\d)\s*\|\s*Gate\s*=\s*(AND|OR|NOT|NAND|NOR|XOR|XNOR)$"
 )
+MUX_PATTERN = re.compile(
+    r"^A=(\d)\s+DI0=(\d)\s+DI1=(\d)\s+->\s+DO=(\d)(?:\s+\(selected: DI[01]\))?$"
+)
 DISPLAY_PATTERN = re.compile(r"^Display:\s*(\d{1,3})$")
 VALID_VALVE_GATES = frozenset({"AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"})
 
@@ -55,6 +58,10 @@ last_valve_a: int | None = None
 last_valve_b: int | None = None
 last_valve_y: int | None = None
 last_valve_gate: str | None = None
+last_mux_a: int | None = None
+last_mux_di0: int | None = None
+last_mux_di1: int | None = None
+last_mux_do: int | None = None
 last_display_value: int | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
@@ -138,6 +145,18 @@ def parse_valve_line(line: str) -> tuple[int, int, int, str] | None:
     )
 
 
+def parse_mux_line(line: str) -> tuple[int, int, int, int] | None:
+    match = MUX_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return (
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3)),
+        int(match.group(4)),
+    )
+
+
 def parse_display_line(line: str) -> int | None:
     match = DISPLAY_PATTERN.match(line.strip())
     if not match:
@@ -199,6 +218,12 @@ async def broadcast_resistance(ohm: float) -> None:
 async def broadcast_valve(a: int, b: int, y: int, gate: str) -> None:
     await broadcast_message(
         json.dumps({"type": "valve", "a": a, "b": b, "y": y, "gate": gate})
+    )
+
+
+async def broadcast_mux(a: int, di0: int, di1: int, do: int) -> None:
+    await broadcast_message(
+        json.dumps({"type": "mux", "a": a, "di0": di0, "di1": di1, "do": do})
     )
 
 
@@ -287,6 +312,16 @@ def notify_valve(a: int, b: int, y: int, gate: str) -> None:
     last_valve_gate = gate
     if event_loop and event_loop.is_running():
         asyncio.run_coroutine_threadsafe(broadcast_valve(a, b, y, gate), event_loop)
+
+
+def notify_mux(a: int, di0: int, di1: int, do: int) -> None:
+    global last_mux_a, last_mux_di0, last_mux_di1, last_mux_do
+    last_mux_a = a
+    last_mux_di0 = di0
+    last_mux_di1 = di1
+    last_mux_do = do
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_mux(a, di0, di1, do), event_loop)
 
 
 def notify_display(value: int) -> None:
@@ -387,6 +422,19 @@ def read_serial(port: serial.Serial) -> None:
                 len(clients),
             )
             notify_valve(a, b, y, gate)
+            continue
+        mux = parse_mux_line(line)
+        if mux is not None:
+            a, di0, di1, do = mux
+            logger.info(
+                "MUX: A=%d DI0=%d DI1=%d DO=%d (clients: %d)",
+                a,
+                di0,
+                di1,
+                do,
+                len(clients),
+            )
+            notify_mux(a, di0, di1, do)
             continue
         display_value = parse_display_line(line)
         if display_value is not None:
@@ -499,6 +547,11 @@ async def display():
     return FileResponse(STATIC_DIR / "display.html")
 
 
+@app.get("/combination")
+async def combination():
+    return FileResponse(STATIC_DIR / "combination.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -517,6 +570,10 @@ async def status():
         "last_valve_b": last_valve_b,
         "last_valve_y": last_valve_y,
         "last_valve_gate": last_valve_gate,
+        "last_mux_a": last_mux_a,
+        "last_mux_di0": last_mux_di0,
+        "last_mux_di1": last_mux_di1,
+        "last_mux_do": last_mux_do,
         "display_value": last_display_value,
     }
 
@@ -607,6 +664,19 @@ async def websocket_endpoint(websocket: WebSocket):
                     "b": last_valve_b,
                     "y": last_valve_y,
                     "gate": last_valve_gate,
+                    "cached": True,
+                }
+            )
+        )
+    if last_mux_do is not None:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "mux",
+                    "a": last_mux_a,
+                    "di0": last_mux_di0,
+                    "di1": last_mux_di1,
+                    "do": last_mux_do,
                     "cached": True,
                 }
             )
