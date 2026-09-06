@@ -1,6 +1,7 @@
 param(
     [string]$Fqbn = "arduino:avr:uno",
-    [int]$TimeoutMs = 120000
+    [int]$TimeoutMs = 120000,
+    [string]$Sketch = $env:WOKWI_SKETCH
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,6 +39,11 @@ Get-ChildItem -Path $ArduinoDir -Directory | ForEach-Object {
     $name = $_.Name
     $wokwiToml = Join-Path $sketchDir "wokwi.toml"
     if (-not (Test-Path $wokwiToml)) {
+        return
+    }
+
+    if ($Sketch -and $name -ne $Sketch) {
+        Write-Host "SKIP: $name (WOKWI_SKETCH=$Sketch)"
         return
     }
 

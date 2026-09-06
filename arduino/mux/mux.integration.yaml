@@ -1,0 +1,40 @@
+name: MUX integration test
+version: 1
+steps:
+  - wait-serial: "MUX 2-to-1"
+  - delay: 2500ms
+  - wait-serial: "A=1  DI0=1  DI1=1  ->  DO=1"
+  - set-control:
+      part-id: btnA
+      control: pressed
+      value: 1
+  - delay: 2500ms
+  - wait-serial: "A=0  DI0=1  DI1=1  ->  DO=1  (selected: DI0)"
+  - set-control:
+      part-id: btnDI0
+      control: pressed
+      value: 1
+  - delay: 2500ms
+  - wait-serial: "A=0  DI0=0  DI1=1  ->  DO=0  (selected: DI0)"
+  - set-control:
+      part-id: btnDI0
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnA
+      control: pressed
+      value: 0
+  - delay: 2500ms
+  - wait-serial: "A=1  DI0=1  DI1=1  ->  DO=1  (selected: DI1)"
+  - set-control:
+      part-id: btnDI1
+      control: pressed
+      value: 1
+  - delay: 2500ms
+  - wait-serial: "A=1  DI0=1  DI1=0  ->  DO=0  (selected: DI1)"
+  - set-control:
+      part-id: btnDI1
+      control: pressed
+      value: 0
+  - delay: 2500ms
+  - wait-serial: "A=1  DI0=1  DI1=1  ->  DO=1  (selected: DI1)"

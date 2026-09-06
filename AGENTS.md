@@ -50,13 +50,14 @@ Each production sketch with integration coverage keeps its own `diagram.json`, `
 
 | Sketch | Diagram | Scenario |
 |--------|---------|----------|
-| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` |
+| `arduino/mux/` | `diagram.json` | `mux.integration.yaml` |
+| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` (local only; CI runs mux via `WOKWI_SKETCH=mux`) |
 
 ```powershell
 # Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)
 $env:WOKWI_CLI_TOKEN = "your-token"
-powershell -File scripts/wokwi_integration_test.ps1
-# Linux/CI: WOKWI_CLI_TOKEN=... bash scripts/wokwi_integration_test.sh
+powershell -File scripts/wokwi_integration_test.ps1 -Sketch mux
+# Linux/CI: WOKWI_SKETCH=mux bash scripts/wokwi_integration_test.sh
 ```
 
 `wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run.
