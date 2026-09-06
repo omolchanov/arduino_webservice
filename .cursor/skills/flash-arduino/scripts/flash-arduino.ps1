@@ -42,7 +42,8 @@ function Resolve-SketchPath {
             "simple01",
             "sensors",
             "mulie_function",
-            "mux"
+            "mux",
+            "demux"
         ) -join ", "
         Write-Error "Sketch not found: $candidate. Known production sketches: $known"
     }

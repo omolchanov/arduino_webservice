@@ -46,33 +46,18 @@
       "left": 220,
       "rotate": 90,
       "attrs": { "value": "220" }
-    },
-    {
-      "type": "wokwi-pushbutton",
-      "id": "btnDI",
-      "top": 55,
-      "left": 360,
-      "attrs": { "color": "green", "label": "DI" }
-    },
-    {
-      "type": "wokwi-pushbutton",
-      "id": "btnA",
-      "top": 55,
-      "left": 480,
-      "attrs": { "color": "black", "label": "A" }
     }
   ],
   "connections": [
     ["uno:GND.1", "bb1:tn.1", "black", []],
+    ["uno:5V",    "bb1:tp.1", "red",   []],
     ["uno:11",    "rY0:1",    "blue",  []],
     ["rY0:2",     "ledY0:A",  "blue",  []],
     ["ledY0:C",   "bb1:tn.8", "black", []],
     ["uno:12",    "rY1:1",    "red",   []],
     ["rY1:2",     "ledY1:A",  "red",   []],
     ["ledY1:C",   "bb1:tn.20", "black", []],
-    ["uno:2",     "btnDI:1.l", "green", []],
-    ["btnDI:2.l", "bb1:tn.32", "black", []],
-    ["uno:4",     "btnA:1.l", "gray", []],
-    ["btnA:2.l",  "bb1:tn.44", "black", []]
+    ["uno:2",     "bb1:tp.25", "green", []],
+    ["uno:4",     "bb1:tp.30", "gray",  []]
   ]
 }

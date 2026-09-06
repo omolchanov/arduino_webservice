@@ -23,7 +23,7 @@ Flashes **Arduino Uno** on **COM8** using `arduino-cli`. **A sketch is mandatory
 
 Accept sketch as:
 
-- Short name: `mux`, `valves`, `simple01`, `sensors`, `mulie_function`
+- Short name: `mux`, `demux`, `valves`, `simple01`, `sensors`, `mulie_function`
 - Folder path: `arduino/mux`, `arduino/valves`
 - Test project: `arduino-tests/test_mux` (only if the user asks for a test sketch)
 
