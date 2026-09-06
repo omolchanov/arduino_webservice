@@ -1,6 +1,6 @@
 // DEMUX 1-to-2 — standalone sketch for Arduino IDE
 // Wiring:
-//   D2 (DI), D4 (A) — jumpers to 5V (=1) or GND (=0)
+//   D2 (DI), D4 (A) — jumper to GND (=0); open or 5V (=1, internal pull-up)
 //   D11 (Y0), D12 (Y1) — each --[220 Ohm]-- LED (+) -- LED (-) -- GND
 
 #define PIN_DI 2
@@ -27,7 +27,7 @@ void setup() {
 
   Serial.begin(9600);
   Serial.println("DEMUX 1-to-2  |  A -> selects Y0 (0) or Y1 (1)");
-  Serial.println("Pins: DI=D2, A=D4, Y0=D11, Y1=D12 -> 220R -> LED -> GND");
+  Serial.println("Pins: DI=D2, A=D4 (GND=0, open/5V=1), Y0=D11, Y1=D12 -> 220R -> LED -> GND");
   Serial.println("----------------------------------------------");
 }
 

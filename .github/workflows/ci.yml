@@ -25,8 +25,11 @@ jobs:
       - name: Run display dashboard Python tests
         run: python -m pytest pytest/test_display.py -v
 
+      - name: Run MUX/DEMUX Python tests
+        run: python -m pytest pytest/test_mux_demux.py -v
+
       - name: Run other Python API tests
-        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py -v
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py -v
 
   arduino-unit-tests:
     name: Arduino unit tests
@@ -51,6 +54,11 @@ jobs:
           make -C arduino-tests/test_mux
           make -C arduino-tests/test_mux run
 
+      - name: Run demux AUnit tests
+        run: |
+          make -C arduino-tests/test_demux
+          make -C arduino-tests/test_demux run
+
       - name: Run sensors AUnit tests
         run: |
           make -C arduino-tests/test_sensors
@@ -61,8 +69,8 @@ jobs:
           make -C arduino-tests/test_simple01
           make -C arduino-tests/test_simple01 run
 
-  arduino-integration-tests-mux:
-    name: Arduino Integration test - MUX
+  arduino-integration-tests-wokwi:
+    name: Arduino integration tests (Wokwi)
     needs: arduino-unit-tests
     runs-on: ubuntu-latest
     steps:
@@ -79,10 +87,10 @@ jobs:
       - name: Install Wokwi CLI
         run: curl -L https://wokwi.com/ci/install.sh | sh
 
-      - name: Run Wokwi integration tests (mux)
+      - name: Run Wokwi integration tests (demux)
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-          WOKWI_SKETCH: mux
+          WOKWI_SKETCH: demux
         run: |
           export PATH="$HOME/.wokwi/bin:$PATH"
           bash scripts/wokwi_integration_test.sh
@@ -91,6 +99,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wokwi-integration-reports-mux
-          path: arduino/mux/wokwi-report.log
+          name: wokwi-integration-reports-demux
+          path: arduino/demux/wokwi-report.log
           if-no-files-found: ignore
