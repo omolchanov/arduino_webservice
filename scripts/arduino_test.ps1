@@ -46,7 +46,8 @@ if ($LASTEXITCODE -ne 0) {
 $productionSketches = @(
     @{ Path = (Join-Path $ArduinoDir "valves"); Label = "valves" },
     @{ Path = (Join-Path $ArduinoDir "simple01"); Label = "simple01" },
-    @{ Path = (Join-Path $ArduinoDir "sensors"); Label = "sensors" }
+    @{ Path = (Join-Path $ArduinoDir "sensors"); Label = "sensors" },
+    @{ Path = (Join-Path $ArduinoDir "mux"); Label = "mux" }
 )
 
 foreach ($sketch in $productionSketches) {
