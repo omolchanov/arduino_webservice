@@ -33,6 +33,12 @@ for toml in "$ARDUINO_DIR"/*/wokwi.toml; do
   [[ -f "$toml" ]] || continue
   sketch_dir="$(dirname "$toml")"
   name="$(basename "$sketch_dir")"
+
+  if [[ -n "${WOKWI_SKETCH:-}" && "$name" != "$WOKWI_SKETCH" ]]; then
+    echo "SKIP: $name (WOKWI_SKETCH=$WOKWI_SKETCH)"
+    continue
+  fi
+
   scenario="$(find "$sketch_dir" -maxdepth 1 -name '*.integration.yaml' -print -quit)"
 
   if [[ -z "$scenario" ]]; then

@@ -21,7 +21,7 @@ const byte DIGIT_SELECT[] = {
     0xF8
 };
 
-const byte COLON_SEGMENT = 0xBF;
+const byte DOT_MASK = 0x7F;
 
 MultiFunctionDisplay::MultiFunctionDisplay(
     byte latchPin,
@@ -32,6 +32,7 @@ MultiFunctionDisplay::MultiFunctionDisplay(
     _clockPin = clockPin;
     _dataPin = dataPin;
     _clockMode = false;
+    _scanPosition = 1;
 }
 
 void MultiFunctionDisplay::begin() {
@@ -51,11 +52,16 @@ void MultiFunctionDisplay::showClock(byte hours, byte minutes) {
 }
 
 void MultiFunctionDisplay::setClockMode(bool enabled) {
+    if (_clockMode == enabled) {
+        return;
+    }
+
     _clockMode = enabled;
+    _scanPosition = enabled ? 0 : 1;
 }
 
 void MultiFunctionDisplay::update() {
-    static byte position = 0;
+    byte position = _scanPosition;
 
     if (!_clockMode && position == 0) {
         position = 1;
@@ -71,6 +77,8 @@ void MultiFunctionDisplay::update() {
     } else if (position >= 4) {
         position = 1;
     }
+
+    _scanPosition = position;
 }
 
 void MultiFunctionDisplay::showDigit(
@@ -78,8 +86,8 @@ void MultiFunctionDisplay::showDigit(
     byte number
 ) {
     byte segments = SEGMENT_MAP[number];
-    if (_clockMode && position == 2) {
-        segments |= COLON_SEGMENT;
+    if (_clockMode && position == 1 && (millis() / 500) % 2 == 0) {
+        segments &= DOT_MASK;
     }
 
     digitalWrite(_latchPin, LOW);

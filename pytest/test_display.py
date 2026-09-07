@@ -145,6 +145,51 @@ class DisplayPageTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
 
+    def test_display_page_has_counter_widget(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertIn('id="displayValue"', response.text)
+        self.assertIn("counter (000–999)", response.text)
+
+    def test_display_page_has_clock_widget(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertIn('id="clockValue"', response.text)
+        self.assertIn("Clock", response.text)
+        self.assertIn("internal clock (24h)", response.text)
+
+    def test_display_page_has_set_value_controls(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertIn('id="setInput"', response.text)
+        self.assertIn('id="setBtn"', response.text)
+
+
+class ParseClockLineEdgeCaseTests(unittest.TestCase):
+    def test_end_of_day_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 23:59"), "23:59")
+
+    def test_afternoon_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 14:30"), "14:30")
+
+
+class ReadSerialCombinedDisplayTests(unittest.TestCase):
+    @patch("main.serial_stop")
+    @patch("main.notify_clock")
+    @patch("main.notify_display")
+    def test_display_then_clock_lines(self, mock_display, mock_clock, mock_stop):
+        mock_stop.is_set.side_effect = [False, False, True]
+        lines = iter([b"Display: 42\n", b"Clock: 12:01\n"])
+
+        class FakePort:
+            def readline(self):
+                return next(lines)
+
+        read_serial(FakePort())
+
+        mock_display.assert_called_once_with(42)
+        mock_clock.assert_called_once_with("12:01")
+
 
 class WebSocketDisplayCacheTests(unittest.TestCase):
     def setUp(self):
@@ -179,6 +224,28 @@ class WebSocketDisplayCacheTests(unittest.TestCase):
         clock = next(m for m in messages if m["type"] == "clock")
         self.assertTrue(clock["cached"])
         self.assertEqual(clock["time"], "14:30")
+
+
+class NotifyClockTests(unittest.TestCase):
+    def tearDown(self):
+        main.last_clock_time = None
+        main.event_loop = None
+
+    @patch("main.broadcast_clock")
+    def test_notify_clock_updates_state(self, mock_broadcast):
+        main.event_loop = None
+        main.notify_clock("12:07")
+        self.assertEqual(main.last_clock_time, "12:07")
+        mock_broadcast.assert_not_called()
+
+    @patch("main.asyncio.run_coroutine_threadsafe")
+    def test_notify_clock_schedules_broadcast_when_loop_running(self, mock_schedule):
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        main.event_loop = loop
+        main.notify_clock("12:07")
+        self.assertEqual(main.last_clock_time, "12:07")
+        mock_schedule.assert_called_once()
 
 
 class DisplayCounterLogicTests(unittest.TestCase):

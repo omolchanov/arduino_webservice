@@ -50,6 +50,7 @@ Each production sketch with integration coverage keeps its own `diagram.json`, `
 | Sketch | Diagram | Scenario |
 |--------|---------|----------|
 | `arduino/valves/` | `diagram.json` | `valves.integration.yaml` |
+| `arduino/mulie_function/` | `diagram.json` | `mulie_function.integration.yaml` |
 
 ```powershell
 # Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)

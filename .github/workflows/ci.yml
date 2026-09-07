@@ -62,7 +62,7 @@ jobs:
           make -C arduino-tests/test_simple01 run
 
   arduino-integration-tests:
-    name: Arduino Integration test - Valves
+    name: Arduino Integration test - Display
     needs: arduino-unit-tests
     runs-on: ubuntu-latest
     steps:
@@ -79,9 +79,10 @@ jobs:
       - name: Install Wokwi CLI
         run: curl -L https://wokwi.com/ci/install.sh | sh
 
-      - name: Run Wokwi integration tests
+      - name: Run Wokwi integration tests (mulie_function)
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+          WOKWI_SKETCH: mulie_function
         run: |
           export PATH="$HOME/.wokwi/bin:$PATH"
           bash scripts/wokwi_integration_test.sh
@@ -91,5 +92,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wokwi-integration-reports
-          path: arduino/**/wokwi-report.log
+          path: arduino/mulie_function/wokwi-report.log
           if-no-files-found: ignore

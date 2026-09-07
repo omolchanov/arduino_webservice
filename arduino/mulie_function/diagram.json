@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "author": "arduino",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 120,
+      "left": 40,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnLeft",
+      "top": 20,
+      "left": 40,
+      "attrs": { "color": "blue", "label": "L" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnMiddle",
+      "top": 20,
+      "left": 160,
+      "attrs": { "color": "green", "label": "M" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btnRight",
+      "top": 20,
+      "left": 280,
+      "attrs": { "color": "red", "label": "R" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer1",
+      "top": 20,
+      "left": 420,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-74hc595",
+      "id": "sr1",
+      "top": 280,
+      "left": 320,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-74hc595",
+      "id": "sr2",
+      "top": 280,
+      "left": 480,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["uno:A1", "btnLeft:1.l", "green", []],
+    ["btnLeft:2.l", "uno:GND.1", "black", []],
+    ["uno:A2", "btnMiddle:1.l", "green", []],
+    ["btnMiddle:2.l", "uno:GND.1", "black", []],
+    ["uno:A3", "btnRight:1.l", "green", []],
+    ["btnRight:2.l", "uno:GND.1", "black", []],
+    ["uno:3", "buzzer1:1", "orange", []],
+    ["buzzer1:2", "uno:GND.1", "black", []],
+    ["uno:8", "sr2:DS", "blue", []],
+    ["uno:7", "sr2:SHCP", "yellow", []],
+    ["uno:4", "sr2:STCP", "green", []],
+    ["sr2:Q7S", "sr1:DS", "blue", []],
+    ["sr2:SHCP", "sr1:SHCP", "yellow", []],
+    ["sr2:STCP", "sr1:STCP", "green", []],
+    ["uno:5V", "sr1:VCC", "red", []],
+    ["uno:5V", "sr2:VCC", "red", []],
+    ["uno:GND.1", "sr1:GND", "black", []],
+    ["uno:GND.1", "sr2:GND", "black", []],
+    ["sr1:GND", "sr1:OE", "black", []],
+    ["sr2:GND", "sr2:OE", "black", []],
+    ["sr1:VCC", "sr1:MR", "red", []],
+    ["sr2:VCC", "sr2:MR", "red", []]
+  ]
+}

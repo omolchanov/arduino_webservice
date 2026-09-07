@@ -19,6 +19,7 @@ private:
     byte _clockPin;
     byte _dataPin;
     bool _clockMode;
+    byte _scanPosition;
 
     byte _digits[4];
 

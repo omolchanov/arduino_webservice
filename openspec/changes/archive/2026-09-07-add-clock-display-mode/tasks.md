@@ -23,4 +23,4 @@
 ## 6. Verification
 
 - [x] 6.1 Run `make -C arduino-tests/test_mulie_function runtests` and `python -m pytest pytest/test_display.py` and confirm all tests pass
-- [ ] 6.2 Manual smoke test: counter widget and clock widget update independently; 3 s hold switches physical display to clock; clock widget advances every minute while counter mode shown on hardware
+- [x] 6.2 Manual smoke test: counter widget and clock widget update independently; 3 s hold switches physical display to clock; clock widget advances every minute while counter mode shown on hardware

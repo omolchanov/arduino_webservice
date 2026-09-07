@@ -131,6 +131,32 @@ test(split_clock_display_leading_zero_hour) {
   assertEqual((int)digits[3], 5);
 }
 
+test(split_clock_display_end_of_day) {
+  byte digits[4];
+  split_clock_display(23, 59, digits);
+  assertEqual((int)digits[0], 2);
+  assertEqual((int)digits[1], 3);
+  assertEqual((int)digits[2], 5);
+  assertEqual((int)digits[3], 9);
+}
+
+test(minutes_to_hours_minutes_afternoon) {
+  byte hours = 0;
+  byte mins = 0;
+  minutes_to_hours_minutes(870, hours, mins);
+  assertEqual((int)hours, 14);
+  assertEqual((int)mins, 30);
+}
+
+test(split_three_digit_display_max) {
+  byte digits[4];
+  split_three_digit_display(999, digits);
+  assertEqual((int)digits[0], 0);
+  assertEqual((int)digits[1], 9);
+  assertEqual((int)digits[2], 9);
+  assertEqual((int)digits[3], 9);
+}
+
 void setup() {
 #if !defined(EPOXY_DUINO)
   delay(2000);

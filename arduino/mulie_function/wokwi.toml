@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/mulie_function.ino.hex"
+elf = "build/mulie_function.ino.elf"

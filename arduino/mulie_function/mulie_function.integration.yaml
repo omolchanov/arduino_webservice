@@ -1,0 +1,81 @@
+name: Display integration test
+version: 1
+steps:
+  - wait-serial: "Display: 0"
+  - wait-serial: "Mode: counter"
+  - wait-serial: "Clock: 12:00"
+  - write-serial: "S42\n"
+  - wait-serial: "Display: 42"
+  - write-serial: "R\n"
+  - wait-serial: "Display: 0"
+  - write-serial: "S99\n"
+  - wait-serial: "Display: 99"
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 1
+  - delay: 800ms
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 0
+  - delay: 200ms
+  - wait-serial: "Display: 0"
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 1
+  - delay: 3500ms
+  - wait-serial: "Mode: clock"
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 0
+  - delay: 200ms
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 1
+  - delay: 3500ms
+  - wait-serial: "Mode: counter"
+  - wait-serial: "Display: 0"

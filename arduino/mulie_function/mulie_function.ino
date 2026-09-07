@@ -156,9 +156,14 @@ bool resetPressed() {
 
 void checkResetButton() {
   static unsigned long pressedAt = 0;
+  static unsigned long releasedAt = 0;
   static bool modeToggleDone = false;
 
   if (!resetPressed()) {
+    if (releasedAt == 0) {
+      releasedAt = millis();
+    }
+
     if (pressedAt != 0 && !modeToggleDone) {
       unsigned long held = millis() - pressedAt;
       if (held >= RESET_HOLD_MS && held < MODE_TOGGLE_HOLD_MS &&
@@ -166,10 +171,15 @@ void checkResetButton() {
         resetToBoot();
       }
     }
-    pressedAt = 0;
-    modeToggleDone = false;
+
+    if (millis() - releasedAt >= DEBOUNCE_DELAY) {
+      pressedAt = 0;
+      modeToggleDone = false;
+    }
     return;
   }
+
+  releasedAt = 0;
 
   if (pressedAt == 0) {
     pressedAt = millis();
