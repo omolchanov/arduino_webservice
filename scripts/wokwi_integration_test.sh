@@ -53,7 +53,7 @@ for toml in "$ARDUINO_DIR"/*/wokwi.toml; do
   echo "==== $name ===="
   echo "Compiling $name..."
   if ! arduino-cli compile -b "$FQBN" "$sketch_dir" \
-    --build-property "compiler.cpp.extra_flags=$INCLUDE_FLAG -DWOKWI_INTEGRATION" \
+    --build-property "compiler.cpp.extra_flags=$INCLUDE_FLAG" \
     --output-dir "$build_dir"; then
     failed+=("$name (compile)")
     continue

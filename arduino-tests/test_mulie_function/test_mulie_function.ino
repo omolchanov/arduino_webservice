@@ -157,6 +157,66 @@ test(split_three_digit_display_max) {
   assertEqual((int)digits[3], 9);
 }
 
+test(increment_ones_from_zero) {
+  assertEqual(increment_ones(0), 1);
+}
+
+test(increment_hundreds_from_one) {
+  assertEqual(increment_hundreds(1), 101);
+}
+
+test(split_three_digit_display_101) {
+  byte digits[4];
+  split_three_digit_display(101, digits);
+  assertEqual((int)digits[0], 0);
+  assertEqual((int)digits[1], 1);
+  assertEqual((int)digits[2], 0);
+  assertEqual((int)digits[3], 1);
+}
+
+test(counter_button_flow) {
+  int value = reset_counter();
+  value = increment_ones(value);
+  assertEqual(value, 1);
+  value = increment_hundreds(value);
+  assertEqual(value, 101);
+  value = reset_counter();
+  assertEqual(value, 0);
+}
+
+test(clock_tick_sequence_from_noon) {
+  int minutes = clock_start_minutes();
+  assertEqual(minutes, 720);
+  minutes = tick_clock_minutes(minutes);
+  assertEqual(minutes, 721);
+  byte hours = 0;
+  byte mins = 0;
+  minutes_to_hours_minutes(minutes, hours, mins);
+  assertEqual((int)hours, 12);
+  assertEqual((int)mins, 1);
+}
+
+test(parse_serial_set_value) {
+  assertEqual(parse_serial_set_value("S42"), 42);
+  assertEqual(parse_serial_set_value("S0"), 0);
+  assertEqual(parse_serial_set_value("S999"), 999);
+  assertEqual(parse_serial_set_value("S1000"), 999);
+  assertEqual(parse_serial_set_value("MODE"), -1);
+}
+
+test(parse_serial_reset_command) {
+  assertTrue(parse_serial_is_reset_command("R"));
+  assertTrue(parse_serial_is_reset_command("RESET"));
+  assertFalse(parse_serial_is_reset_command("MODE"));
+  assertFalse(parse_serial_is_reset_command(nullptr));
+}
+
+test(parse_serial_mode_command) {
+  assertTrue(parse_serial_is_mode_command("MODE"));
+  assertFalse(parse_serial_is_mode_command("R"));
+  assertFalse(parse_serial_is_mode_command(nullptr));
+}
+
 void setup() {
 #if !defined(EPOXY_DUINO)
   delay(2000);

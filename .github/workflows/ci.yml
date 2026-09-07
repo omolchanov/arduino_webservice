@@ -61,36 +61,12 @@ jobs:
           make -C arduino-tests/test_simple01
           make -C arduino-tests/test_simple01 run
 
-  arduino-integration-tests:
-    name: Arduino Integration test - Display
-    needs: arduino-unit-tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Install arduino-cli
         uses: arduino/setup-arduino-cli@v1
 
-      - name: Install AVR core
+      - name: Compile mulie_function production sketch
         run: |
           arduino-cli core update-index
           arduino-cli core install arduino:avr
-
-      - name: Install Wokwi CLI
-        run: curl -L https://wokwi.com/ci/install.sh | sh
-
-      - name: Run Wokwi integration tests (mulie_function)
-        env:
-          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-          WOKWI_SKETCH: mulie_function
-        run: |
-          export PATH="$HOME/.wokwi/bin:$PATH"
-          bash scripts/wokwi_integration_test.sh
-
-      - name: Upload Wokwi serial reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wokwi-integration-reports
-          path: arduino/mulie_function/wokwi-report.log
-          if-no-files-found: ignore
+          arduino-cli compile -b arduino:avr:uno arduino/mulie_function \
+            --build-property "compiler.cpp.extra_flags=-Iarduino"

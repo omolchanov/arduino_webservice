@@ -82,6 +82,15 @@ class WriteSerialDisplayTests(unittest.TestCase):
         self.assertTrue(write_serial_display(567))
         port.write.assert_called_once_with(b"S567\n")
 
+    def test_write_display_101(self):
+        port = MagicMock()
+        port.is_open = True
+        main.serial_connected = True
+        main.serial_port = port
+
+        self.assertTrue(write_serial_display(101))
+        port.write.assert_called_once_with(b"S101\n")
+
     def test_write_invalid_value(self):
         self.assertFalse(write_serial_display(1000))
 
@@ -136,6 +145,12 @@ class DisplayValueApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"ok": True, "value": 42})
         mock_write.assert_called_once_with(42)
+
+    @patch("main.write_serial_display", return_value=True)
+    def test_set_101(self, mock_write):
+        response = self.client.post("/api/display/value", json={"value": 101})
+        self.assertEqual(response.status_code, 200)
+        mock_write.assert_called_once_with(101)
 
 
 class DisplayPageTests(unittest.TestCase):
@@ -272,6 +287,19 @@ class DisplayCounterLogicTests(unittest.TestCase):
 
     def test_reset_counter(self):
         self.assertEqual(self._reset(), 0)
+
+    def test_counter_button_flow(self):
+        value = self._reset()
+        value = self._increment_ones(value)
+        self.assertEqual(value, 1)
+        value = self._increment_hundreds(value)
+        self.assertEqual(value, 101)
+        value = self._reset()
+        self.assertEqual(value, 0)
+
+    def test_serial_set_command_clamps(self):
+        self.assertEqual(self._clamp(1000), 999)
+        self.assertEqual(self._clamp(-5), 0)
 
     @staticmethod
     def _reset() -> int:

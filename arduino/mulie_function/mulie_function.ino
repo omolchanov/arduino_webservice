@@ -10,15 +10,9 @@
 #define BUZZER_PIN 3
 #define DEBOUNCE_DELAY 50
 #define BEEP_MS 30
-#ifdef WOKWI_INTEGRATION
-#define RESET_HOLD_MS 400
-#define MODE_TOGGLE_HOLD_MS 60000UL
-#define CLOCK_TICK_MS 3600000UL
-#else
 #define RESET_HOLD_MS 500
 #define MODE_TOGGLE_HOLD_MS 3000
 #define CLOCK_TICK_MS 60000UL
-#endif
 
 enum DisplayMode {
   MODE_COUNTER,
@@ -70,11 +64,9 @@ void incrementOnes() {
 }
 
 void beep() {
-#ifndef WOKWI_INTEGRATION
   digitalWrite(BUZZER_PIN, LOW);
   delay(BEEP_MS);
   digitalWrite(BUZZER_PIN, HIGH);
-#endif
 }
 
 void beepTwice() {
@@ -136,7 +128,6 @@ void toggleDisplayMode() {
 }
 
 void tickClock() {
-#ifndef WOKWI_INTEGRATION
   unsigned long now = millis();
   if (lastClockTickMs == 0) {
     lastClockTickMs = now;
@@ -155,7 +146,6 @@ void tickClock() {
   if (displayMode == MODE_CLOCK) {
     applyClockDisplay();
   }
-#endif
 }
 
 bool resetPressed() {
@@ -197,10 +187,8 @@ void checkResetButton() {
   }
 
   if (!modeToggleDone && millis() - pressedAt >= MODE_TOGGLE_HOLD_MS) {
-#ifndef WOKWI_INTEGRATION
     toggleDisplayMode();
     modeToggleDone = true;
-#endif
   }
 }
 
@@ -236,16 +224,16 @@ void handleSerial() {
   }
 
   if (line.startsWith("S")) {
-    setCounter(line.substring(1).toInt());
+    setCounter(parse_serial_set_value(line.c_str()));
     return;
   }
 
-  if (line == "R" || line == "RESET") {
+  if (parse_serial_is_reset_command(line.c_str())) {
     resetToBoot();
     return;
   }
 
-  if (line == "MODE") {
+  if (parse_serial_is_mode_command(line.c_str())) {
     toggleDisplayMode();
   }
 }
@@ -262,9 +250,7 @@ void setup() {
 
   clockMinutes = clock_start_minutes();
   resetToBoot();
-#ifndef WOKWI_INTEGRATION
   Serial.println("Mode: counter");
-#endif
 }
 
 void loop() {

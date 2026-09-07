@@ -103,4 +103,26 @@ inline void split_clock_display(byte hours, byte minutes, byte digits[4]) {
   digits[3] = minutes % 10;
 }
 
+inline bool parse_serial_is_set_command(const char* line) {
+  return line != nullptr && line[0] == 'S' && line[1] != '\0';
+}
+
+inline int parse_serial_set_value(const char* line) {
+  if (!parse_serial_is_set_command(line)) {
+    return -1;
+  }
+  return clamp_counter(atoi(line + 1));
+}
+
+inline bool parse_serial_is_reset_command(const char* line) {
+  if (line == nullptr) {
+    return false;
+  }
+  return strcmp(line, "R") == 0 || strcmp(line, "RESET") == 0;
+}
+
+inline bool parse_serial_is_mode_command(const char* line) {
+  return line != nullptr && strcmp(line, "MODE") == 0;
+}
+
 #endif
