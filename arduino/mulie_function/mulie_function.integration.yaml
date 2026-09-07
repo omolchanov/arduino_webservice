@@ -4,11 +4,15 @@ steps:
   - wait-serial: "Display: 0"
   - wait-serial: "Mode: counter"
   - wait-serial: "Clock: 12:00"
+  - delay: 500ms
   - write-serial: "S42\n"
+  - delay: 200ms
   - wait-serial: "Display: 42"
   - write-serial: "R\n"
+  - delay: 200ms
   - wait-serial: "Display: 0"
   - write-serial: "S99\n"
+  - delay: 200ms
   - wait-serial: "Display: 99"
   - set-control:
       part-id: btnLeft
@@ -38,7 +42,9 @@ steps:
   - delay: 200ms
   - wait-serial: "Display: 0"
   - write-serial: "MODE\n"
+  - delay: 200ms
   - wait-serial: "Mode: clock"
   - write-serial: "MODE\n"
+  - delay: 200ms
   - wait-serial: "Mode: counter"
   - wait-serial: "Display: 0"

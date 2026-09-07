@@ -60,7 +60,7 @@ Get-ChildItem -Path $ArduinoDir -Directory | ForEach-Object {
     Write-Host "==== $name ===="
     Write-Host "Compiling $name..."
     & arduino-cli compile -b $Fqbn $sketchDir `
-        --build-property "compiler.cpp.extra_flags=$IncludeFlag" `
+        --build-property "compiler.cpp.extra_flags=$IncludeFlag -DWOKWI_INTEGRATION" `
         --output-dir $buildDir
     if ($LASTEXITCODE -ne 0) {
         $failed += "$name (compile)"
