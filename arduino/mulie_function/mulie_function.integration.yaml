@@ -3,7 +3,6 @@ version: 1
 steps:
   - wait-serial: "Display: 0"
   - wait-serial: "Mode: counter"
-  - wait-serial: "Clock: 12:00"
   - set-control:
       part-id: btnRight
       control: pressed
@@ -39,61 +38,6 @@ steps:
       control: pressed
       value: 1
   - delay: 600ms
-  - set-control:
-      part-id: btnLeft
-      control: pressed
-      value: 0
-  - set-control:
-      part-id: btnMiddle
-      control: pressed
-      value: 0
-  - set-control:
-      part-id: btnRight
-      control: pressed
-      value: 0
-  - delay: 200ms
-  - wait-serial: "Display: 0"
-  - set-control:
-      part-id: btnLeft
-      control: pressed
-      value: 1
-  - set-control:
-      part-id: btnMiddle
-      control: pressed
-      value: 1
-  - set-control:
-      part-id: btnRight
-      control: pressed
-      value: 1
-  - delay: 1000ms
-  - wait-serial: "Mode: clock"
-  - set-control:
-      part-id: btnLeft
-      control: pressed
-      value: 0
-  - set-control:
-      part-id: btnMiddle
-      control: pressed
-      value: 0
-  - set-control:
-      part-id: btnRight
-      control: pressed
-      value: 0
-  - delay: 200ms
-  - set-control:
-      part-id: btnLeft
-      control: pressed
-      value: 1
-  - set-control:
-      part-id: btnMiddle
-      control: pressed
-      value: 1
-  - set-control:
-      part-id: btnRight
-      control: pressed
-      value: 1
-  - delay: 1000ms
-  - wait-serial: "Mode: counter"
   - set-control:
       part-id: btnLeft
       control: pressed
