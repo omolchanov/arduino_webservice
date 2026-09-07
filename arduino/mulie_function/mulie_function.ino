@@ -10,11 +10,13 @@
 #define BUZZER_PIN 3
 #define DEBOUNCE_DELAY 50
 #define BEEP_MS 30
-#define RESET_HOLD_MS 500
-#define MODE_TOGGLE_HOLD_MS 3000
 #ifdef WOKWI_INTEGRATION
+#define RESET_HOLD_MS 400
+#define MODE_TOGGLE_HOLD_MS 900
 #define CLOCK_TICK_MS 3600000UL
 #else
+#define RESET_HOLD_MS 500
+#define MODE_TOGGLE_HOLD_MS 3000
 #define CLOCK_TICK_MS 60000UL
 #endif
 
@@ -216,7 +218,17 @@ void handleButton(ButtonState &btn, void (*onPress)()) {
   btn.lastReading = reading;
 }
 
-void processSerialLine(const String &line) {
+void handleSerial() {
+  if (Serial.available() <= 0) {
+    return;
+  }
+
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  if (line.length() == 0) {
+    return;
+  }
+
   if (line.startsWith("S")) {
     setCounter(line.substring(1).toInt());
     return;
@@ -232,25 +244,6 @@ void processSerialLine(const String &line) {
   }
 }
 
-void handleSerial() {
-  static String buffer;
-
-  while (Serial.available()) {
-    char c = Serial.read();
-    if (c == '\n' || c == '\r') {
-      if (buffer.length() > 0) {
-        processSerialLine(buffer);
-        buffer = "";
-      }
-      continue;
-    }
-
-    if (buffer.length() < 16) {
-      buffer += c;
-    }
-  }
-}
-
 void setup() {
   pinMode(BTN_LEFT_PIN, INPUT_PULLUP);
   pinMode(BTN_MIDDLE_PIN, INPUT_PULLUP);
@@ -260,7 +253,6 @@ void setup() {
 
   display.begin();
   Serial.begin(9600);
-  Serial.setTimeout(20);
 
   clockMinutes = clock_start_minutes();
   resetToBoot();

@@ -4,16 +4,28 @@ steps:
   - wait-serial: "Display: 0"
   - wait-serial: "Mode: counter"
   - wait-serial: "Clock: 12:00"
-  - delay: 500ms
-  - write-serial: "S42\n"
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 1
+  - delay: 150ms
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 0
   - delay: 200ms
-  - wait-serial: "Display: 42"
-  - write-serial: "R\n"
+  - wait-serial: "Display: 1"
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 1
+  - delay: 150ms
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 0
   - delay: 200ms
-  - wait-serial: "Display: 0"
-  - write-serial: "S99\n"
-  - delay: 200ms
-  - wait-serial: "Display: 99"
+  - wait-serial: "Display: 101"
   - set-control:
       part-id: btnLeft
       control: pressed
@@ -26,7 +38,7 @@ steps:
       part-id: btnRight
       control: pressed
       value: 1
-  - delay: 800ms
+  - delay: 600ms
   - set-control:
       part-id: btnLeft
       control: pressed
@@ -41,10 +53,58 @@ steps:
       value: 0
   - delay: 200ms
   - wait-serial: "Display: 0"
-  - write-serial: "MODE\n"
-  - delay: 200ms
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 1
+  - delay: 1000ms
   - wait-serial: "Mode: clock"
-  - write-serial: "MODE\n"
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 0
   - delay: 200ms
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 1
+  - delay: 1000ms
   - wait-serial: "Mode: counter"
+  - set-control:
+      part-id: btnLeft
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnMiddle
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btnRight
+      control: pressed
+      value: 0
+  - delay: 200ms
   - wait-serial: "Display: 0"
