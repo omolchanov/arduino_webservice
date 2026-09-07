@@ -25,8 +25,11 @@ jobs:
       - name: Run display dashboard Python tests
         run: python -m pytest pytest/test_display.py -v
 
+      - name: Run MUX/DEMUX Python tests
+        run: python -m pytest pytest/test_mux_demux.py -v
+
       - name: Run other Python API tests
-        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py -v
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py -v
 
   arduino-unit-tests:
     name: Arduino unit tests
@@ -46,10 +49,15 @@ jobs:
           make -C arduino-tests/test_mulie_function
           make -C arduino-tests/test_mulie_function run
 
-      - name: Run valves AUnit tests
+      - name: Run mux AUnit tests
         run: |
-          make -C arduino-tests/test_valves
-          make -C arduino-tests/test_valves run
+          make -C arduino-tests/test_mux
+          make -C arduino-tests/test_mux run
+
+      - name: Run demux AUnit tests
+        run: |
+          make -C arduino-tests/test_demux
+          make -C arduino-tests/test_demux run
 
       - name: Run sensors AUnit tests
         run: |
@@ -70,3 +78,37 @@ jobs:
           arduino-cli core install arduino:avr
           arduino-cli compile -b arduino:avr:uno arduino/mulie_function \
             --build-property "compiler.cpp.extra_flags=-Iarduino"
+
+  arduino-integration-tests-wokwi:
+    name: Arduino integration tests (Wokwi)
+    needs: arduino-unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Install AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Install Wokwi CLI
+        run: curl -L https://wokwi.com/ci/install.sh | sh
+
+      - name: Run Wokwi integration tests (demux)
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+          WOKWI_SKETCH: demux
+        run: |
+          export PATH="$HOME/.wokwi/bin:$PATH"
+          bash scripts/wokwi_integration_test.sh
+
+      - name: Upload Wokwi serial reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wokwi-integration-reports-demux
+          path: arduino/demux/wokwi-report.log
+          if-no-files-found: ignore

@@ -48,6 +48,11 @@ Get-ChildItem -Path $ArduinoDir -Directory | ForEach-Object {
         return
     }
 
+    if ($Sketch -and $name -ne $Sketch) {
+        Write-Host "SKIP: $name (WOKWI_SKETCH=$Sketch)"
+        return
+    }
+
     $scenario = Get-ChildItem -Path $sketchDir -Filter "*.integration.yaml" -File |
         Select-Object -First 1
     if (-not $scenario) {

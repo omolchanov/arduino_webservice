@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arduino Valves</title>
+  <title>Arduino Multiplexor</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,7 +54,7 @@
       color: #fff;
       background: #2a2a30;
       border-color: #4a4a55;
-      border-left: 3px solid #a78bfa;
+      border-left: 3px solid #34d399;
       padding-left: calc(0.75rem - 2px);
     }
 
@@ -73,22 +73,6 @@
       padding: 0.75rem 2rem;
       border-bottom: 1px solid #3a3a42;
       background: #1c1c22;
-    }
-
-    .gate-select {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #e8e8e8;
-      background: #252528;
-      border: 1px solid #3a3a42;
-      padding: 0.35rem 0.75rem;
-      font-family: inherit;
-      cursor: pointer;
-    }
-
-    .gate-select:hover {
-      border-color: #4a4a55;
-      background: #2a2a30;
     }
 
     .app-status {
@@ -120,15 +104,7 @@
       font-size: 1.1rem;
       font-weight: 600;
       color: #ccc;
-      margin-bottom: 0;
-    }
-
-    .page-title-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 1.25rem;
-      gap: 1rem;
     }
 
     .dashboard {
@@ -141,7 +117,7 @@
     .value-widgets-row {
       grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1rem;
     }
 
@@ -196,19 +172,18 @@
       align-items: center;
     }
 
-    .gate-value {
+    .address-value {
       font-size: 3.5rem;
       font-weight: 700;
       line-height: 1;
       color: #a78bfa;
     }
 
-    .inputs-value {
-      font-size: 2rem;
+    .input-value {
+      font-size: 3.5rem;
       font-weight: 700;
-      line-height: 1.4;
+      line-height: 1;
       color: #60a5fa;
-      text-align: center;
     }
 
     .output-value {
@@ -248,8 +223,8 @@
     }
 
     .truth-table tr.active td {
-      background: #2a2540;
-      color: #c4b5fd;
+      background: #1a2e28;
+      color: #34d399;
     }
 
     .notification {
@@ -276,9 +251,9 @@
         <a href="/">Keypad</a>
         <a href="/sensors">Sensors</a>
         <a href="/digital">Digital Signal</a>
-        <a href="/valves" class="active">Valves</a>
+        <a href="/valves">Valves</a>
         <a href="/display">Display</a>
-        <a href="/multiplexor">Multiplexor</a>
+        <a href="/multiplexor" class="active">Multiplexor</a>
         <a href="/demultiplexor">Demultiplexor</a>
       </nav>
     </aside>
@@ -289,57 +264,58 @@
       </header>
 
       <main class="content">
-        <div class="page-title-row">
-          <h1 class="page-title">Logical Valves</h1>
-          <select id="gateSelect" class="gate-select" aria-label="Select gate">
-            <option value="AND">AND</option>
-            <option value="OR">OR</option>
-            <option value="NOT">NOT</option>
-            <option value="NAND">NAND</option>
-            <option value="NOR">NOR</option>
-            <option value="XOR">XOR</option>
-            <option value="XNOR">XNOR</option>
-          </select>
-        </div>
+        <h1 class="page-title">Multiplexor</h1>
 
         <div class="dashboard">
           <div class="value-widgets-row">
             <div class="card">
               <div class="card-header">
-                Selected gate <span id="gateDot" class="sensor-status-dot" aria-hidden="true"></span>
+                Address A <span id="addressDot" class="sensor-status-dot" aria-hidden="true"></span>
               </div>
               <div class="card-body card-body-value">
-                <div id="gateValue" class="gate-value">—</div>
+                <div id="addressValue" class="address-value">—</div>
+                <div class="distance-unit">D4</div>
               </div>
             </div>
             <div class="card">
               <div class="card-header">
-                Inputs <span id="inputsDot" class="sensor-status-dot" aria-hidden="true"></span>
+                Data input DI0 <span id="di0Dot" class="sensor-status-dot" aria-hidden="true"></span>
               </div>
               <div class="card-body card-body-value">
-                <div id="inputsValue" class="inputs-value">A: —<br>B: —</div>
+                <div id="di0Value" class="input-value">—</div>
+                <div class="distance-unit">D2</div>
               </div>
             </div>
             <div class="card">
               <div class="card-header">
-                Output <span id="outputDot" class="sensor-status-dot" aria-hidden="true"></span>
+                Data input DI1 <span id="di1Dot" class="sensor-status-dot" aria-hidden="true"></span>
+              </div>
+              <div class="card-body card-body-value">
+                <div id="di1Value" class="input-value">—</div>
+                <div class="distance-unit">D3</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                Output DO <span id="outputDot" class="sensor-status-dot" aria-hidden="true"></span>
               </div>
               <div class="card-body card-body-value">
                 <div id="outputValue" class="output-value">—</div>
-                <div class="distance-unit">Y</div>
+                <div class="distance-unit">D13</div>
               </div>
             </div>
           </div>
 
           <div class="card card-wide">
-            <div class="card-header">Truth table</div>
+            <div class="card-header">Multiplexor truth table</div>
             <div class="card-body">
               <table class="truth-table">
                 <thead>
                   <tr>
                     <th>A</th>
-                    <th>B</th>
-                    <th>Y</th>
+                    <th>DI0</th>
+                    <th>DI1</th>
+                    <th>DO</th>
                   </tr>
                 </thead>
                 <tbody id="truthTableBody"></tbody>
@@ -355,33 +331,34 @@
 
   <script>
     const SENSOR_PENDING_MS = 10000;
-    const TRUTH_TABLES = {
-      AND: [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 1]],
-      OR: [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]],
-      NOT: [[0, null, 1], [1, null, 0]],
-      NAND: [[0, 0, 1], [0, 1, 1], [1, 0, 1], [1, 1, 0]],
-      NOR: [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 0]],
-      XOR: [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]],
-      XNOR: [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 1]],
-    };
+    const MUX_TRUTH_TABLE = [
+      [0, 0, null, 0],
+      [0, 1, null, 1],
+      [1, null, 0, 0],
+      [1, null, 1, 1],
+    ];
 
-    const gateSelectEl = document.getElementById("gateSelect");
-    const gateValueEl = document.getElementById("gateValue");
-    const inputsValueEl = document.getElementById("inputsValue");
+    const addressValueEl = document.getElementById("addressValue");
+    const di0ValueEl = document.getElementById("di0Value");
+    const di1ValueEl = document.getElementById("di1Value");
     const outputValueEl = document.getElementById("outputValue");
     const truthTableBodyEl = document.getElementById("truthTableBody");
     const statusEl = document.getElementById("status");
-    const notificationEl = document.getElementById("notification");
 
     const widgets = {
-      gate: {
+      address: {
         dotState: "initializing",
-        dotEl: document.getElementById("gateDot"),
+        dotEl: document.getElementById("addressDot"),
         initTimeoutId: null,
       },
-      inputs: {
+      di0: {
         dotState: "initializing",
-        dotEl: document.getElementById("inputsDot"),
+        dotEl: document.getElementById("di0Dot"),
+        initTimeoutId: null,
+      },
+      di1: {
+        dotState: "initializing",
+        dotEl: document.getElementById("di1Dot"),
         initTimeoutId: null,
       },
       output: {
@@ -395,16 +372,9 @@
     let reconnectTimer = null;
     let arduinoOnline = false;
     let serialStatusKnown = false;
-    let selectedGate = "AND";
     let currentA = null;
-    let currentB = null;
-    let suppressGateChange = false;
-
-    function showNotification(message, type = "error") {
-      notificationEl.textContent = message;
-      notificationEl.className = `notification show ${type}`;
-      setTimeout(() => notificationEl.classList.remove("show"), 3000);
-    }
+    let currentDi0 = null;
+    let currentDi1 = null;
 
     function setWidgetDot(widgetId, state) {
       widgets[widgetId].dotState = state;
@@ -464,62 +434,39 @@
       }
     }
 
+    function formatCell(value) {
+      return value === null ? "X" : value;
+    }
+
     function renderTruthTable() {
-      const rows = TRUTH_TABLES[selectedGate] || [];
-      truthTableBodyEl.innerHTML = rows
-        .map(([a, b, y]) => {
+      truthTableBodyEl.innerHTML = MUX_TRUTH_TABLE
+        .map(([a, di0, di1, doVal]) => {
           const active =
             currentA !== null &&
-            (selectedGate === "NOT"
-              ? a === currentA
-              : currentB !== null && a === currentA && b === currentB);
-          const bCell = b === null ? "—" : b;
-          return `<tr class="${active ? "active" : ""}"><td>${a}</td><td>${bCell}</td><td>${y}</td></tr>`;
+            currentDi0 !== null &&
+            currentDi1 !== null &&
+            a === currentA &&
+            (a === 0
+              ? di0 === currentDi0
+              : di1 === currentDi1);
+          return `<tr class="${active ? "active" : ""}"><td>${a}</td><td>${formatCell(di0)}</td><td>${formatCell(di1)}</td><td>${doVal}</td></tr>`;
         })
         .join("");
     }
 
-    function setGateSelect(gate) {
-      suppressGateChange = true;
-      gateSelectEl.value = gate;
-      suppressGateChange = false;
-      selectedGate = gate;
-      renderTruthTable();
-    }
-
-    function applyValve(data, live) {
+    function applyMux(data, live) {
       currentA = data.a;
-      currentB = data.b;
-      gateValueEl.textContent = data.gate;
-      inputsValueEl.innerHTML = `A: ${data.a}<br>B: ${data.b}`;
-      outputValueEl.textContent = String(data.y);
-      setGateSelect(data.gate);
+      currentDi0 = data.di0;
+      currentDi1 = data.di1;
+      addressValueEl.textContent = String(data.a);
+      di0ValueEl.textContent = String(data.di0);
+      di1ValueEl.textContent = String(data.di1);
+      outputValueEl.textContent = String(data.do);
       renderTruthTable();
-      applyWidgetReading("gate", live);
-      applyWidgetReading("inputs", live);
+      applyWidgetReading("address", live);
+      applyWidgetReading("di0", live);
+      applyWidgetReading("di1", live);
       applyWidgetReading("output", live);
-    }
-
-    async function sendGateSelection(gate) {
-      try {
-        const response = await fetch("/api/valve/gate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ gate }),
-        });
-        if (!response.ok) {
-          const detail = response.status === 503
-            ? "Serial not connected"
-            : "Could not set gate";
-          showNotification(detail, "error");
-          return;
-        }
-        selectedGate = gate;
-        renderTruthTable();
-        showNotification(`Gate set to ${gate}`, "success");
-      } catch {
-        showNotification("Could not set gate", "error");
-      }
     }
 
     async function pollStatus() {
@@ -532,17 +479,17 @@
           setStatus(data.serial_connected);
         }
         if (
-          data.last_valve_gate !== null &&
-          data.last_valve_a !== null &&
-          data.last_valve_b !== null &&
-          data.last_valve_y !== null
+          data.last_mux_a !== null &&
+          data.last_mux_di0 !== null &&
+          data.last_mux_di1 !== null &&
+          data.last_mux_do !== null
         ) {
-          applyValve(
+          applyMux(
             {
-              a: data.last_valve_a,
-              b: data.last_valve_b,
-              y: data.last_valve_y,
-              gate: data.last_valve_gate,
+              a: data.last_mux_a,
+              di0: data.last_mux_di0,
+              di1: data.last_mux_di1,
+              do: data.last_mux_do,
             },
             false
           );
@@ -578,8 +525,8 @@
           setStatus(data.connected);
           return;
         }
-        if (data.type === "valve") {
-          applyValve(data, !data.cached);
+        if (data.type === "mux") {
+          applyMux(data, !data.cached);
         }
       };
 
@@ -590,11 +537,6 @@
         }
       };
     }
-
-    gateSelectEl.addEventListener("change", () => {
-      if (suppressGateChange) return;
-      sendGateSelection(gateSelectEl.value);
-    });
 
     renderTruthTable();
     pollStatus();

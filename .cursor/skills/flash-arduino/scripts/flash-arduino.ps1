@@ -38,7 +38,18 @@ function Resolve-SketchPath {
         }
     }
 
-    $normalized = ($SketchName -replace '[/\\]$', '' -replace '\.ino$', '')
+    $normalized = ($SketchName.Trim().TrimEnd('.', '/', '\') -replace '\.ino$', '' -replace '\\', '/')
+
+    if ($normalized -match "^arduino-tests/") {
+        $candidate = Join-Path $RepoRoot ($normalized -replace "/", [IO.Path]::DirectorySeparatorChar)
+        if (Test-Path $candidate) {
+            $ino = Get-ChildItem -Path $candidate -Filter "*.ino" -File | Select-Object -First 1
+            if ($ino) {
+                return (Resolve-Path $candidate).Path
+            }
+        }
+    }
+
     $leaf = Split-Path $normalized -Leaf
     $candidates = @(
         (Join-Path $ArduinoDir $leaf),

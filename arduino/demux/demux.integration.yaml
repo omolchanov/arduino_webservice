@@ -1,0 +1,8 @@
+name: DEMUX integration test
+version: 1
+steps:
+  - wait-serial: "DEMUX 1-to-2"
+  - delay: 2500ms
+  - wait-serial: "A=1  DI=1  ->  Y0=0  Y1=1"
+  - delay: 2500ms
+  - wait-serial: "A=1  DI=1  ->  Y0=0  Y1=1  (selected: Y1)"

@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/demux.ino.hex"
+elf = "build/demux.ino.elf"

@@ -33,6 +33,8 @@ make -C arduino-tests runtests
 | `arduino/simple01/` | `arduino-tests/test_simple01/` |
 | `arduino/sensors/` | `arduino-tests/test_sensors/` |
 | `arduino/mulie_function/` | `arduino-tests/test_mulie_function/` |
+| `arduino/mux/` | `arduino-tests/test_mux/` |
+| `arduino/demux/` | `arduino-tests/test_demux/` |
 
 ### Arduino compile and optional hardware tests
 
@@ -49,13 +51,15 @@ Optional production-sketch integration tests use co-located `diagram.json`, `wok
 
 | Sketch | Diagram | Scenario |
 |--------|---------|----------|
-| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` |
+| `arduino/mux/` | `diagram.json` | `mux.integration.yaml` |
+| `arduino/demux/` | `diagram.json` | `demux.integration.yaml` |
+| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` (local only; CI runs demux via `WOKWI_SKETCH=demux`) |
 
 ```powershell
 # Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)
 $env:WOKWI_CLI_TOKEN = "your-token"
-powershell -File scripts/wokwi_integration_test.ps1
-# Linux/CI: WOKWI_CLI_TOKEN=... bash scripts/wokwi_integration_test.sh
+powershell -File scripts/wokwi_integration_test.ps1 -Sketch demux
+# Linux/CI: WOKWI_SKETCH=demux bash scripts/wokwi_integration_test.sh
 ```
 
 `wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run. Display (`mulie_function`) is covered by AUnit and pytest only.
@@ -75,4 +79,4 @@ Close Arduino Serial Monitor before running tests or starting uvicorn.
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
 - `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit unit tests
-- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`
+- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`

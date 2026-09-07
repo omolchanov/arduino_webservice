@@ -3,6 +3,7 @@ set -euo pipefail
 
 FQBN="${FQBN:-arduino:avr:uno}"
 TIMEOUT_MS="${TIMEOUT_MS:-120000}"
+WOKWI_SKETCH="${WOKWI_SKETCH:-}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARDUINO_DIR="$REPO_ROOT/arduino"
 INCLUDE_FLAG="-I$ARDUINO_DIR"
@@ -34,7 +35,7 @@ for toml in "$ARDUINO_DIR"/*/wokwi.toml; do
   sketch_dir="$(dirname "$toml")"
   name="$(basename "$sketch_dir")"
 
-  if [[ -n "${WOKWI_SKETCH:-}" && "$name" != "$WOKWI_SKETCH" ]]; then
+  if [[ -n "$WOKWI_SKETCH" && "$name" != "$WOKWI_SKETCH" ]]; then
     echo "SKIP: $name (WOKWI_SKETCH=$WOKWI_SKETCH)"
     continue
   fi
