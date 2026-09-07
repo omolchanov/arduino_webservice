@@ -43,6 +43,7 @@ DEMUX_PATTERN = re.compile(
     r"^A=(\d)\s+DI=(\d)\s+->\s+Y0=(\d)\s+Y1=(\d)(?:\s+\(selected: Y[01]\))?$"
 )
 DISPLAY_PATTERN = re.compile(r"^Display:\s*(\d{1,3})$")
+CLOCK_PATTERN = re.compile(r"^Clock:\s*(\d{2}):(\d{2})$")
 VALID_VALVE_GATES = frozenset({"AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"})
 
 clients: list[WebSocket] = []
@@ -70,6 +71,7 @@ last_demux_di: int | None = None
 last_demux_y0: int | None = None
 last_demux_y1: int | None = None
 last_display_value: int | None = None
+last_clock_time: str | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -186,6 +188,17 @@ def parse_display_line(line: str) -> int | None:
     return value
 
 
+def parse_clock_line(line: str) -> str | None:
+    match = CLOCK_PATTERN.match(line.strip())
+    if not match:
+        return None
+    hours = int(match.group(1))
+    minutes = int(match.group(2))
+    if hours > 23 or minutes > 59:
+        return None
+    return f"{hours:02d}:{minutes:02d}"
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -254,6 +267,10 @@ async def broadcast_demux(a: int, di: int, y0: int, y1: int) -> None:
 
 async def broadcast_display(value: int) -> None:
     await broadcast_message(json.dumps({"type": "display", "value": value}))
+
+
+async def broadcast_clock(time: str) -> None:
+    await broadcast_message(json.dumps({"type": "clock", "time": time}))
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -364,6 +381,13 @@ def notify_display(value: int) -> None:
     last_display_value = value
     if event_loop and event_loop.is_running():
         asyncio.run_coroutine_threadsafe(broadcast_display(value), event_loop)
+
+
+def notify_clock(time: str) -> None:
+    global last_clock_time
+    last_clock_time = time
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_clock(time), event_loop)
 
 
 def write_serial_gate(gate: str) -> bool:
@@ -492,6 +516,15 @@ def read_serial(port: serial.Serial) -> None:
                 len(clients),
             )
             notify_display(display_value)
+            continue
+        clock_time = parse_clock_line(line)
+        if clock_time is not None:
+            logger.info(
+                "Clock: %s (clients: %d)",
+                clock_time,
+                len(clients),
+            )
+            notify_clock(clock_time)
             continue
         key = parse_key_line(line)
         if key:
@@ -632,6 +665,7 @@ async def status():
         "last_demux_y0": last_demux_y0,
         "last_demux_y1": last_demux_y1,
         "display_value": last_display_value,
+        "clock_time": last_clock_time,
     }
 
 
@@ -756,6 +790,10 @@ async def websocket_endpoint(websocket: WebSocket):
             json.dumps(
                 {"type": "display", "value": last_display_value, "cached": True}
             )
+        )
+    if last_clock_time is not None:
+        await websocket.send_text(
+            json.dumps({"type": "clock", "time": last_clock_time, "cached": True})
         )
     try:
         while True:

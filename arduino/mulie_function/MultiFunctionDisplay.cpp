@@ -21,6 +21,8 @@ const byte DIGIT_SELECT[] = {
     0xF8
 };
 
+const byte DOT_MASK = 0x7F;
+
 MultiFunctionDisplay::MultiFunctionDisplay(
     byte latchPin,
     byte clockPin,
@@ -29,6 +31,8 @@ MultiFunctionDisplay::MultiFunctionDisplay(
     _latchPin = latchPin;
     _clockPin = clockPin;
     _dataPin = dataPin;
+    _clockMode = false;
+    _scanPosition = 1;
 }
 
 void MultiFunctionDisplay::begin() {
@@ -43,28 +47,56 @@ void MultiFunctionDisplay::show(int number) {
     split_three_digit_display(number, _digits);
 }
 
+void MultiFunctionDisplay::showClock(byte hours, byte minutes) {
+    split_clock_display(hours, minutes, _digits);
+}
+
+void MultiFunctionDisplay::setClockMode(bool enabled) {
+    if (_clockMode == enabled) {
+        return;
+    }
+
+    _clockMode = enabled;
+    _scanPosition = enabled ? 0 : 1;
+}
+
 void MultiFunctionDisplay::update() {
-    static byte position = 1;
+    byte position = _scanPosition;
+
+    if (!_clockMode && position == 0) {
+        position = 1;
+    }
 
     showDigit(position, _digits[position]);
 
     position++;
-    if (position >= 4) {
+    if (_clockMode) {
+        if (position >= 4) {
+            position = 0;
+        }
+    } else if (position >= 4) {
         position = 1;
     }
+
+    _scanPosition = position;
 }
 
 void MultiFunctionDisplay::showDigit(
     byte position,
     byte number
 ) {
+    byte segments = SEGMENT_MAP[number];
+    if (_clockMode && position == 1 && (millis() / 500) % 2 == 0) {
+        segments &= DOT_MASK;
+    }
+
     digitalWrite(_latchPin, LOW);
 
     shiftOut(
         _dataPin,
         _clockPin,
         MSBFIRST,
-        SEGMENT_MAP[number]
+        segments
     );
 
     shiftOut(

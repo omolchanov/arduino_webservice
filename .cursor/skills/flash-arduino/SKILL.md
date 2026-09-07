@@ -27,11 +27,18 @@ Accept sketch as:
 - Folder path: `arduino/mux`, `arduino/valves`
 - Test project: `arduino-tests/test_mux` (only if the user asks for a test sketch)
 
-Production sketches live under `arduino/<name>/`.
+| Short name | Path |
+|------------|------|
+| `valves` | `arduino/valves/` |
+| `simple01` | `arduino/simple01/` |
+| `sensors` | `arduino/sensors/` |
+| `mulie_function` | `arduino/mulie_function/` |
+| `mux` | `arduino/mux/` |
+| `demux` | `arduino/demux/` |
 
 ## Preconditions
 
-1. Run `/stop-app` first if uvicorn is running (COM8 is shared with the FastAPI app).
+1. Run `/stop-app` first if uvicorn is running (the flash script also calls stop-app automatically).
 2. Close **Arduino Serial Monitor** and any other app using COM8.
 3. `arduino-cli` must be on PATH (`arduino:avr:uno` core installed).
 
@@ -71,10 +78,11 @@ powershell -ExecutionPolicy Bypass -File .cursor/skills/flash-arduino/scripts/fl
 ## Failure handling
 
 - **Sketch missing**: list known production sketches and ask the user to pick one.
-- **Port busy**: suggest `/stop-app`, close Serial Monitor, retry once.
+- **Port busy**: run `/stop-app`, close Serial Monitor, retry once.
 - **Compile error**: show `arduino-cli` output; fix the sketch before retrying upload.
 
 ## Notes
 
+- Shared headers live in `arduino/*.h`; the script passes `-Iarduino` like `scripts/arduino_test.ps1`.
 - `COM8` matches `main.py` and `AGENTS.md`.
 - Do not start uvicorn after flashing unless the user asks.

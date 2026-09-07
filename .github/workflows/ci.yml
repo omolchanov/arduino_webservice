@@ -69,6 +69,16 @@ jobs:
           make -C arduino-tests/test_simple01
           make -C arduino-tests/test_simple01 run
 
+      - name: Install arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Compile mulie_function production sketch
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli compile -b arduino:avr:uno arduino/mulie_function \
+            --build-property "compiler.cpp.extra_flags=-Iarduino"
+
   arduino-integration-tests-wokwi:
     name: Arduino integration tests (Wokwi)
     needs: arduino-unit-tests

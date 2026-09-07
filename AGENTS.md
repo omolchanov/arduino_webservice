@@ -47,7 +47,7 @@ powershell -File scripts/arduino_test.ps1 -Port COM8
 
 ### Arduino integration tests (Wokwi, per-sketch diagram)
 
-Each production sketch with integration coverage keeps its own `diagram.json`, `wokwi.toml`, and `*.integration.yaml` under `arduino/<sketch>/`.
+Optional production-sketch integration tests use co-located `diagram.json`, `wokwi.toml`, and `*.integration.yaml` under `arduino/<sketch>/`.
 
 | Sketch | Diagram | Scenario |
 |--------|---------|----------|
@@ -62,7 +62,7 @@ powershell -File scripts/wokwi_integration_test.ps1 -Sketch demux
 # Linux/CI: WOKWI_SKETCH=demux bash scripts/wokwi_integration_test.sh
 ```
 
-`wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run.
+`wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run. Display (`mulie_function`) is covered by AUnit and pytest only.
 
 Close Arduino Serial Monitor before running tests or starting uvicorn.
 

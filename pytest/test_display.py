@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 import main
-from main import parse_display_line, read_serial, write_serial_display
+from main import parse_clock_line, parse_display_line, read_serial, write_serial_display
 
 
 class ParseDisplayLineTests(unittest.TestCase):
@@ -24,6 +24,20 @@ class ParseDisplayLineTests(unittest.TestCase):
         self.assertIsNone(parse_display_line(""))
 
 
+class ParseClockLineTests(unittest.TestCase):
+    def test_valid_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 12:00"), "12:00")
+
+    def test_midnight_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 00:00"), "00:00")
+
+    def test_invalid_clock_lines(self):
+        self.assertIsNone(parse_clock_line("Clock: 25:00"))
+        self.assertIsNone(parse_clock_line("Clock: 12:60"))
+        self.assertIsNone(parse_clock_line("Display: 42"))
+        self.assertIsNone(parse_clock_line(""))
+
+
 class ReadSerialDisplayTests(unittest.TestCase):
     @patch("main.serial_stop")
     @patch("main.notify_display")
@@ -37,6 +51,21 @@ class ReadSerialDisplayTests(unittest.TestCase):
         read_serial(FakePort())
 
         mock_notify.assert_called_once_with(42)
+
+
+class ReadSerialClockTests(unittest.TestCase):
+    @patch("main.serial_stop")
+    @patch("main.notify_clock")
+    def test_clock_line_emits_clock(self, mock_notify, mock_stop):
+        mock_stop.is_set.side_effect = [False, True]
+
+        class FakePort:
+            def readline(self):
+                return b"Clock: 12:00\n"
+
+        read_serial(FakePort())
+
+        mock_notify.assert_called_once_with("12:00")
 
 
 class WriteSerialDisplayTests(unittest.TestCase):
@@ -53,6 +82,15 @@ class WriteSerialDisplayTests(unittest.TestCase):
         self.assertTrue(write_serial_display(567))
         port.write.assert_called_once_with(b"S567\n")
 
+    def test_write_display_101(self):
+        port = MagicMock()
+        port.is_open = True
+        main.serial_connected = True
+        main.serial_port = port
+
+        self.assertTrue(write_serial_display(101))
+        port.write.assert_called_once_with(b"S101\n")
+
     def test_write_invalid_value(self):
         self.assertFalse(write_serial_display(1000))
 
@@ -65,15 +103,22 @@ class WriteSerialDisplayTests(unittest.TestCase):
 class StatusApiDisplayTests(unittest.TestCase):
     def setUp(self):
         main.last_display_value = 105
+        main.last_clock_time = "12:00"
         self.client = TestClient(main.app)
 
     def tearDown(self):
         main.last_display_value = None
+        main.last_clock_time = None
 
     def test_status_includes_display_value(self):
         response = self.client.get("/api/status")
         data = response.json()
         self.assertEqual(data["display_value"], 105)
+
+    def test_status_includes_clock_time(self):
+        response = self.client.get("/api/status")
+        data = response.json()
+        self.assertEqual(data["clock_time"], "12:00")
 
 
 class DisplayValueApiTests(unittest.TestCase):
@@ -101,6 +146,12 @@ class DisplayValueApiTests(unittest.TestCase):
         self.assertEqual(response.json(), {"ok": True, "value": 42})
         mock_write.assert_called_once_with(42)
 
+    @patch("main.write_serial_display", return_value=True)
+    def test_set_101(self, mock_write):
+        response = self.client.post("/api/display/value", json={"value": 101})
+        self.assertEqual(response.status_code, 200)
+        mock_write.assert_called_once_with(101)
+
 
 class DisplayPageTests(unittest.TestCase):
     def test_display_page_loads(self):
@@ -109,14 +160,61 @@ class DisplayPageTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
 
+    def test_display_page_has_counter_widget(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertIn('id="displayValue"', response.text)
+        self.assertIn("counter (000–999)", response.text)
+
+    def test_display_page_has_clock_widget(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertIn('id="clockValue"', response.text)
+        self.assertIn("Clock", response.text)
+        self.assertIn("internal clock (24h)", response.text)
+
+    def test_display_page_has_set_value_controls(self):
+        client = TestClient(main.app)
+        response = client.get("/display")
+        self.assertIn('id="setInput"', response.text)
+        self.assertIn('id="setBtn"', response.text)
+
+
+class ParseClockLineEdgeCaseTests(unittest.TestCase):
+    def test_end_of_day_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 23:59"), "23:59")
+
+    def test_afternoon_clock_line(self):
+        self.assertEqual(parse_clock_line("Clock: 14:30"), "14:30")
+
+
+class ReadSerialCombinedDisplayTests(unittest.TestCase):
+    @patch("main.serial_stop")
+    @patch("main.notify_clock")
+    @patch("main.notify_display")
+    def test_display_then_clock_lines(self, mock_display, mock_clock, mock_stop):
+        mock_stop.is_set.side_effect = [False, False, True]
+        lines = iter([b"Display: 42\n", b"Clock: 12:01\n"])
+
+        class FakePort:
+            def readline(self):
+                return next(lines)
+
+        read_serial(FakePort())
+
+        mock_display.assert_called_once_with(42)
+        mock_clock.assert_called_once_with("12:01")
+
 
 class WebSocketDisplayCacheTests(unittest.TestCase):
     def setUp(self):
         main.last_display_value = 123
+        main.last_clock_time = "14:30"
         self.client = TestClient(main.app)
 
     def tearDown(self):
         main.last_display_value = None
+        main.last_clock_time = None
 
     def test_connect_sends_cached_display(self):
         with self.client.websocket_connect("/ws") as ws:
@@ -129,6 +227,40 @@ class WebSocketDisplayCacheTests(unittest.TestCase):
         display = next(m for m in messages if m["type"] == "display")
         self.assertTrue(display["cached"])
         self.assertEqual(display["value"], 123)
+
+    def test_connect_sends_cached_clock(self):
+        with self.client.websocket_connect("/ws") as ws:
+            messages = []
+            while len(messages) < 6:
+                raw = ws.receive_text()
+                messages.append(json.loads(raw))
+                if any(m["type"] == "clock" for m in messages):
+                    break
+        clock = next(m for m in messages if m["type"] == "clock")
+        self.assertTrue(clock["cached"])
+        self.assertEqual(clock["time"], "14:30")
+
+
+class NotifyClockTests(unittest.TestCase):
+    def tearDown(self):
+        main.last_clock_time = None
+        main.event_loop = None
+
+    @patch("main.broadcast_clock")
+    def test_notify_clock_updates_state(self, mock_broadcast):
+        main.event_loop = None
+        main.notify_clock("12:07")
+        self.assertEqual(main.last_clock_time, "12:07")
+        mock_broadcast.assert_not_called()
+
+    @patch("main.asyncio.run_coroutine_threadsafe")
+    def test_notify_clock_schedules_broadcast_when_loop_running(self, mock_schedule):
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        main.event_loop = loop
+        main.notify_clock("12:07")
+        self.assertEqual(main.last_clock_time, "12:07")
+        mock_schedule.assert_called_once()
 
 
 class DisplayCounterLogicTests(unittest.TestCase):
@@ -155,6 +287,19 @@ class DisplayCounterLogicTests(unittest.TestCase):
 
     def test_reset_counter(self):
         self.assertEqual(self._reset(), 0)
+
+    def test_counter_button_flow(self):
+        value = self._reset()
+        value = self._increment_ones(value)
+        self.assertEqual(value, 1)
+        value = self._increment_hundreds(value)
+        self.assertEqual(value, 101)
+        value = self._reset()
+        self.assertEqual(value, 0)
+
+    def test_serial_set_command_clamps(self):
+        self.assertEqual(self._clamp(1000), 999)
+        self.assertEqual(self._clamp(-5), 0)
 
     @staticmethod
     def _reset() -> int:

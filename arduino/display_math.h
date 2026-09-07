@@ -79,4 +79,50 @@ inline void split_display_digits(int number, byte digits[4]) {
   digits[3] = number % 10;
 }
 
+inline int clock_start_minutes() {
+  return 720;
+}
+
+inline int tick_clock_minutes(int minutes) {
+  return (minutes + 1) % 1440;
+}
+
+inline void minutes_to_hours_minutes(int totalMinutes, byte &hours, byte &mins) {
+  totalMinutes = totalMinutes % 1440;
+  if (totalMinutes < 0) {
+    totalMinutes += 1440;
+  }
+  hours = totalMinutes / 60;
+  mins = totalMinutes % 60;
+}
+
+inline void split_clock_display(byte hours, byte minutes, byte digits[4]) {
+  digits[0] = hours / 10;
+  digits[1] = hours % 10;
+  digits[2] = minutes / 10;
+  digits[3] = minutes % 10;
+}
+
+inline bool parse_serial_is_set_command(const char* line) {
+  return line != nullptr && line[0] == 'S' && line[1] != '\0';
+}
+
+inline int parse_serial_set_value(const char* line) {
+  if (!parse_serial_is_set_command(line)) {
+    return -1;
+  }
+  return clamp_counter(atoi(line + 1));
+}
+
+inline bool parse_serial_is_reset_command(const char* line) {
+  if (line == nullptr) {
+    return false;
+  }
+  return strcmp(line, "R") == 0 || strcmp(line, "RESET") == 0;
+}
+
+inline bool parse_serial_is_mode_command(const char* line) {
+  return line != nullptr && strcmp(line, "MODE") == 0;
+}
+
 #endif

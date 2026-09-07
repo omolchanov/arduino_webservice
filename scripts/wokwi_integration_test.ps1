@@ -37,6 +37,12 @@ $failed = @()
 Get-ChildItem -Path $ArduinoDir -Directory | ForEach-Object {
     $sketchDir = $_.FullName
     $name = $_.Name
+
+    if ($Sketch -and $name -ne $Sketch) {
+        Write-Host "SKIP: $name (WOKWI_SKETCH=$Sketch)"
+        return
+    }
+
     $wokwiToml = Join-Path $sketchDir "wokwi.toml"
     if (-not (Test-Path $wokwiToml)) {
         return

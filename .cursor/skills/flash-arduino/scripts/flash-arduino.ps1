@@ -1,7 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Sketch,
-
     [string]$Port = "COM8",
     [string]$Fqbn = "arduino:avr:uno"
 )
@@ -18,54 +17,90 @@ function Require-ArduinoCli {
 }
 
 function Resolve-SketchPath {
-    param([string]$Name)
+    param([string]$SketchName)
 
-    $normalized = $Name.Trim().TrimEnd('.', '/', '\')
-    if ($normalized.EndsWith(".ino")) {
-        $normalized = Split-Path $normalized -Parent
+    $absolutePaths = @()
+    foreach ($candidate in @($SketchName, (Join-Path $RepoRoot $SketchName))) {
+        if (Test-Path $candidate) {
+            $absolutePaths += (Resolve-Path $candidate).Path
+        }
     }
-    $normalized = $normalized -replace "\\", "/"
 
-    if ($normalized -match "^arduino/") {
+    foreach ($path in ($absolutePaths | Select-Object -Unique)) {
+        if (Test-Path $path -PathType Leaf) {
+            if ($path -match '\.ino$') {
+                return (Resolve-Path (Split-Path $path -Parent)).Path
+            }
+            continue
+        }
+        if (Test-Path (Join-Path $path "*.ino")) {
+            return (Resolve-Path $path).Path
+        }
+    }
+
+    $normalized = ($SketchName.Trim().TrimEnd('.', '/', '\') -replace '\.ino$', '' -replace '\\', '/')
+
+    if ($normalized -match "^arduino-tests/") {
         $candidate = Join-Path $RepoRoot ($normalized -replace "/", [IO.Path]::DirectorySeparatorChar)
-    }
-    elseif ($normalized -match "^arduino-tests/") {
-        $candidate = Join-Path $RepoRoot ($normalized -replace "/", [IO.Path]::DirectorySeparatorChar)
-    }
-    else {
-        $candidate = Join-Path $ArduinoDir $normalized
-    }
-
-    if (-not (Test-Path $candidate)) {
-        $known = @(
-            "valves",
-            "simple01",
-            "sensors",
-            "mulie_function",
-            "mux",
-            "demux"
-        ) -join ", "
-        Write-Error "Sketch not found: $candidate. Known production sketches: $known"
+        if (Test-Path $candidate) {
+            $ino = Get-ChildItem -Path $candidate -Filter "*.ino" -File | Select-Object -First 1
+            if ($ino) {
+                return (Resolve-Path $candidate).Path
+            }
+        }
     }
 
-    $ino = Get-ChildItem -Path $candidate -Filter "*.ino" -File | Select-Object -First 1
-    if (-not $ino) {
-        Write-Error "No .ino file in sketch folder: $candidate"
+    $leaf = Split-Path $normalized -Leaf
+    $candidates = @(
+        (Join-Path $ArduinoDir $leaf),
+        (Join-Path $ArduinoDir $normalized),
+        (Join-Path $RepoRoot $normalized),
+        (Join-Path $RepoRoot "arduino\$leaf")
+    )
+
+    foreach ($path in ($candidates | Select-Object -Unique)) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        if (Test-Path (Join-Path $path "*.ino")) {
+            return (Resolve-Path $path).Path
+        }
     }
 
-    return $candidate
+    $known = (Get-ChildItem -Path $ArduinoDir -Directory | ForEach-Object { $_.Name }) -join ", "
+    throw "Sketch not found: $SketchName. Known sketches under arduino/: $known"
 }
 
 Require-ArduinoCli
-$sketchPath = Resolve-SketchPath -Name $Sketch
-$sketchLabel = Split-Path $sketchPath -Leaf
 
-Write-Host "Flashing $sketchLabel to $Port ($Fqbn)..."
-Write-Host "Sketch path: $sketchPath"
-
-& arduino-cli compile -b $Fqbn -p $Port -u $sketchPath --build-property "compiler.cpp.extra_flags=$IncludeFlag"
-if ($LASTEXITCODE -ne 0) {
-    throw "Upload failed: $sketchLabel"
+$coreList = & arduino-cli core list 2>&1
+if ($coreList -notmatch "arduino:avr") {
+    Write-Host "Installing arduino:avr core..."
+    & arduino-cli core update-index
+    & arduino-cli core install arduino:avr
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install arduino:avr core"
+    }
 }
 
-Write-Host "Upload complete: $sketchLabel -> $Port"
+$stopScript = Join-Path $RepoRoot ".cursor\skills\stop-app\scripts\stop-app.ps1"
+if (Test-Path $stopScript) {
+    Write-Host "Stopping uvicorn and releasing $Port..."
+    & powershell -ExecutionPolicy Bypass -File $stopScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "stop-app reported issues; continuing with upload."
+    }
+} else {
+    Write-Warning "stop-app script not found; close Serial Monitor and uvicorn manually."
+}
+
+$sketchPath = Resolve-SketchPath -SketchName $Sketch
+$label = Split-Path $sketchPath -Leaf
+
+Write-Host "Compiling and uploading $label to $Port..."
+& arduino-cli compile -b $Fqbn -p $Port -u $sketchPath --build-property "compiler.cpp.extra_flags=$IncludeFlag"
+if ($LASTEXITCODE -ne 0) {
+    throw "Upload failed: $label"
+}
+
+Write-Host "Upload complete: $label -> $Port"
