@@ -227,6 +227,11 @@ void handleSerial() {
 
   if (line == "R" || line == "RESET") {
     resetToBoot();
+    return;
+  }
+
+  if (line == "MODE") {
+    toggleDisplayMode();
   }
 }
 
