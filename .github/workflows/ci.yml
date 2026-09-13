@@ -28,8 +28,11 @@ jobs:
       - name: Run MUX/DEMUX Python tests
         run: python -m pytest pytest/test_mux_demux.py -v
 
+      - name: Run condensator Python tests
+        run: python -m pytest pytest/test_condensator.py -v
+
       - name: Run other Python API tests
-        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py -v
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py --ignore=pytest/test_condensator.py -v
 
   arduino-unit-tests:
     name: Arduino unit tests
@@ -69,14 +72,21 @@ jobs:
           make -C arduino-tests/test_simple01
           make -C arduino-tests/test_simple01 run
 
+      - name: Run condensator AUnit tests
+        run: |
+          make -C arduino-tests/test_condensator
+          make -C arduino-tests/test_condensator run
+
       - name: Install arduino-cli
         uses: arduino/setup-arduino-cli@v1
 
-      - name: Compile mulie_function production sketch
+      - name: Compile production sketches
         run: |
           arduino-cli core update-index
           arduino-cli core install arduino:avr
           arduino-cli compile -b arduino:avr:uno arduino/mulie_function \
+            --build-property "compiler.cpp.extra_flags=-Iarduino"
+          arduino-cli compile -b arduino:avr:uno arduino/condensator \
             --build-property "compiler.cpp.extra_flags=-Iarduino"
 
   arduino-integration-tests-wokwi:
@@ -97,10 +107,10 @@ jobs:
       - name: Install Wokwi CLI
         run: curl -L https://wokwi.com/ci/install.sh | sh
 
-      - name: Run Wokwi integration tests (demux)
+      - name: Run Wokwi integration tests (condensator)
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-          WOKWI_SKETCH: demux
+          WOKWI_SKETCH: condensator
         run: |
           export PATH="$HOME/.wokwi/bin:$PATH"
           bash scripts/wokwi_integration_test.sh
@@ -109,6 +119,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wokwi-integration-reports-demux
-          path: arduino/demux/wokwi-report.log
+          name: wokwi-integration-reports-condensator
+          path: arduino/condensator/wokwi-report.log
           if-no-files-found: ignore

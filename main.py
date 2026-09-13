@@ -44,6 +44,7 @@ DEMUX_PATTERN = re.compile(
 )
 DISPLAY_PATTERN = re.compile(r"^Display:\s*(\d{1,3})$")
 CLOCK_PATTERN = re.compile(r"^Clock:\s*(\d{2}):(\d{2})$")
+CONDENSATOR_PATTERN = re.compile(r"^V\s*=\s*([\d.]+)\s+V\s+Q\s*=\s*([\d.]+)\s+uC$")
 VALID_VALVE_GATES = frozenset({"AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"})
 
 clients: list[WebSocket] = []
@@ -72,6 +73,9 @@ last_demux_y0: int | None = None
 last_demux_y1: int | None = None
 last_display_value: int | None = None
 last_clock_time: str | None = None
+last_condensator_v: float | None = None
+last_condensator_q_uc: float | None = None
+last_condensator_phase: str | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
@@ -199,6 +203,22 @@ def parse_clock_line(line: str) -> str | None:
     return f"{hours:02d}:{minutes:02d}"
 
 
+def parse_condensator_line(line: str) -> tuple[float, float] | None:
+    match = CONDENSATOR_PATTERN.match(line.strip())
+    if not match:
+        return None
+    return float(match.group(1)), float(match.group(2))
+
+
+def parse_condensator_phase_line(line: str) -> str | None:
+    stripped = line.strip()
+    if stripped == "Charging...":
+        return "charging"
+    if stripped == "Discharging...":
+        return "discharging"
+    return None
+
+
 async def broadcast_message(message: str) -> None:
     dead: list[WebSocket] = []
     for client in clients:
@@ -271,6 +291,18 @@ async def broadcast_display(value: int) -> None:
 
 async def broadcast_clock(time: str) -> None:
     await broadcast_message(json.dumps({"type": "clock", "time": time}))
+
+
+async def broadcast_condensator(v: float, q_uc: float) -> None:
+    await broadcast_message(
+        json.dumps({"type": "condensator", "v": v, "q_uc": q_uc})
+    )
+
+
+async def broadcast_condensator_phase(phase: str) -> None:
+    await broadcast_message(
+        json.dumps({"type": "condensator_phase", "phase": phase})
+    )
 
 
 async def broadcast_serial_status(connected: bool) -> None:
@@ -388,6 +420,21 @@ def notify_clock(time: str) -> None:
     last_clock_time = time
     if event_loop and event_loop.is_running():
         asyncio.run_coroutine_threadsafe(broadcast_clock(time), event_loop)
+
+
+def notify_condensator(v: float, q_uc: float) -> None:
+    global last_condensator_v, last_condensator_q_uc
+    last_condensator_v = v
+    last_condensator_q_uc = q_uc
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_condensator(v, q_uc), event_loop)
+
+
+def notify_condensator_phase(phase: str) -> None:
+    global last_condensator_phase
+    last_condensator_phase = phase
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_condensator_phase(phase), event_loop)
 
 
 def write_serial_gate(gate: str) -> bool:
@@ -526,6 +573,26 @@ def read_serial(port: serial.Serial) -> None:
             )
             notify_clock(clock_time)
             continue
+        condensator_phase = parse_condensator_phase_line(line)
+        if condensator_phase is not None:
+            logger.info(
+                "Condensator phase: %s (clients: %d)",
+                condensator_phase,
+                len(clients),
+            )
+            notify_condensator_phase(condensator_phase)
+            continue
+        condensator = parse_condensator_line(line)
+        if condensator is not None:
+            v, q_uc = condensator
+            logger.info(
+                "Condensator: V=%.2f Q=%.1f uC (clients: %d)",
+                v,
+                q_uc,
+                len(clients),
+            )
+            notify_condensator(v, q_uc)
+            continue
         key = parse_key_line(line)
         if key:
             asyncio.run_coroutine_threadsafe(key_queue.put(key), event_loop)
@@ -638,6 +705,11 @@ async def demultiplexor():
     return FileResponse(STATIC_DIR / "demultiplexor.html")
 
 
+@app.get("/condensator")
+async def condensator():
+    return FileResponse(STATIC_DIR / "condensator.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -666,6 +738,9 @@ async def status():
         "last_demux_y1": last_demux_y1,
         "display_value": last_display_value,
         "clock_time": last_clock_time,
+        "last_condensator_v": last_condensator_v,
+        "last_condensator_q_uc": last_condensator_q_uc,
+        "last_condensator_phase": last_condensator_phase,
     }
 
 
@@ -794,6 +869,27 @@ async def websocket_endpoint(websocket: WebSocket):
     if last_clock_time is not None:
         await websocket.send_text(
             json.dumps({"type": "clock", "time": last_clock_time, "cached": True})
+        )
+    if last_condensator_v is not None:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "condensator",
+                    "v": last_condensator_v,
+                    "q_uc": last_condensator_q_uc,
+                    "cached": True,
+                }
+            )
+        )
+    if last_condensator_phase is not None:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "condensator_phase",
+                    "phase": last_condensator_phase,
+                    "cached": True,
+                }
+            )
         )
     try:
         while True:

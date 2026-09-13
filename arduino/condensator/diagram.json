@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "author": "arduino",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-breadboard",
+      "id": "bb1",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 300,
+      "left": 60,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "capSense",
+      "top": 20,
+      "left": 120,
+      "attrs": { "value": "512" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rCharge",
+      "top": 75,
+      "left": 40,
+      "rotate": 90,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rDischarge",
+      "top": 75,
+      "left": 200,
+      "rotate": 90,
+      "attrs": { "value": "10000" }
+    }
+  ],
+  "connections": [
+    ["uno:GND.1", "bb1:tn.1", "black", []],
+    ["uno:5V", "capSense:VCC", "red", []],
+    ["capSense:GND", "bb1:tn.10", "black", []],
+    ["bb1:tn.10", "bb1:tn.1", "black", []],
+    ["uno:A0", "capSense:SIG", "blue", []],
+    ["uno:8", "rCharge:1", "green", []],
+    ["rCharge:2", "capSense:SIG", "green", []],
+    ["uno:9", "rDischarge:1", "yellow", []],
+    ["rDischarge:2", "capSense:SIG", "yellow", []]
+  ]
+}

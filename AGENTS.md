@@ -35,6 +35,7 @@ make -C arduino-tests runtests
 | `arduino/mulie_function/` | `arduino-tests/test_mulie_function/` |
 | `arduino/mux/` | `arduino-tests/test_mux/` |
 | `arduino/demux/` | `arduino-tests/test_demux/` |
+| `arduino/condensator/` | `arduino-tests/test_condensator/` |
 
 ### Arduino compile and optional hardware tests
 
@@ -53,13 +54,14 @@ Optional production-sketch integration tests use co-located `diagram.json`, `wok
 |--------|---------|----------|
 | `arduino/mux/` | `diagram.json` | `mux.integration.yaml` |
 | `arduino/demux/` | `diagram.json` | `demux.integration.yaml` |
-| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` (local only; CI runs demux via `WOKWI_SKETCH=demux`) |
+| `arduino/condensator/` | `diagram.json` | `condensator.integration.yaml` |
+| `arduino/valves/` | `diagram.json` | `valves.integration.yaml` (local only; CI runs condensator via `WOKWI_SKETCH=condensator`) |
 
 ```powershell
 # Token: https://wokwi.com/dashboard/ci — set WOKWI_CLI_TOKEN (never commit)
 $env:WOKWI_CLI_TOKEN = "your-token"
-powershell -File scripts/wokwi_integration_test.ps1 -Sketch demux
-# Linux/CI: WOKWI_SKETCH=demux bash scripts/wokwi_integration_test.sh
+powershell -File scripts/wokwi_integration_test.ps1 -Sketch condensator
+# Linux/CI: WOKWI_SKETCH=condensator bash scripts/wokwi_integration_test.sh
 ```
 
 `wokwi-cli` uploads `diagram.json` and firmware to the Wokwi Simulation API before each run. Display (`mulie_function`) is covered by AUnit and pytest only.
@@ -79,4 +81,4 @@ Close Arduino Serial Monitor before running tests or starting uvicorn.
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
 - `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit unit tests
-- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`
+- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`, `arduino/condensator/` (one sketch per dashboard; upload `condensator.ino` for `/condensator`)
