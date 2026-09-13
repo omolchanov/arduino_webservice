@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arduino Keypad</title>
+  <title>Arduino TV Remote</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -54,7 +54,7 @@
       color: #fff;
       background: #2a2a30;
       border-color: #4a4a55;
-      border-left: 3px solid #4ade80;
+      border-left: 3px solid #38bdf8;
       padding-left: calc(0.75rem - 2px);
     }
 
@@ -103,6 +103,12 @@
       font-size: 1.1rem;
       font-weight: 600;
       color: #ccc;
+      margin-bottom: 0.35rem;
+    }
+
+    .page-subtitle {
+      font-size: 0.85rem;
+      color: #888;
       margin-bottom: 1.25rem;
     }
 
@@ -146,15 +152,25 @@
       justify-content: center;
     }
 
-    .last-key {
-      font-size: 4.5rem;
+    .last-button {
+      font-size: 2.5rem;
       font-weight: 700;
-      line-height: 1;
-      color: #e94560;
+      line-height: 1.1;
+      color: #38bdf8;
       text-align: center;
     }
 
-    .last-key.empty { color: #444; }
+    .last-button.empty { color: #444; }
+
+    .raw-code {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      font-family: "Consolas", monospace;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    .raw-code.hidden { display: none; }
 
     .history {
       list-style: none;
@@ -194,14 +210,14 @@
   <div class="layout">
     <aside class="sidebar">
       <nav>
-        <a href="/" class="active">Keypad</a>
+        <a href="/">Keypad</a>
         <a href="/sensors">Sensors</a>
         <a href="/digital">Digital Signal</a>
         <a href="/valves">Valves</a>
         <a href="/display">Display</a>
         <a href="/multiplexor">Multiplexor</a>
         <a href="/demultiplexor">Demultiplexor</a>
-        <a href="/tv-remote">TV Remote</a>
+        <a href="/tv-remote" class="active">TV Remote</a>
       </nav>
     </aside>
 
@@ -211,23 +227,25 @@
       </header>
 
       <main class="content">
-      <h1 class="page-title">Keypad Live</h1>
+        <h1 class="page-title">TV Remote</h1>
+        <p class="page-subtitle">Requires <code>arduino/tv_remote/tv_remote.ino</code> — IR receiver on D2</p>
 
-      <div class="dashboard">
-        <div class="card">
-          <div class="card-header">Last Key</div>
-          <div class="card-body">
-            <div id="lastKey" class="last-key empty">—</div>
+        <div class="dashboard">
+          <div class="card">
+            <div class="card-header">Last Button</div>
+            <div class="card-body">
+              <div id="lastButton" class="last-button empty">—</div>
+              <div id="rawCode" class="raw-code hidden"></div>
+            </div>
+          </div>
+
+          <div class="card card-wide">
+            <div class="card-header">Recent Buttons</div>
+            <div class="card-body" style="padding: 0;">
+              <ul id="history" class="history"></ul>
+            </div>
           </div>
         </div>
-
-        <div class="card card-wide">
-          <div class="card-header">Recent Keys</div>
-          <div class="card-body" style="padding: 0;">
-            <ul id="history" class="history"></ul>
-          </div>
-        </div>
-      </div>
       </main>
     </div>
   </div>
@@ -236,7 +254,8 @@
 
   <script>
     const MAX_HISTORY = 50;
-    const lastKeyEl = document.getElementById("lastKey");
+    const lastButtonEl = document.getElementById("lastButton");
+    const rawCodeEl = document.getElementById("rawCode");
     const historyEl = document.getElementById("history");
     const statusEl = document.getElementById("status");
     const notificationEl = document.getElementById("notification");
@@ -267,12 +286,27 @@
       }
     }
 
-    function appendKey(key) {
-      lastKeyEl.textContent = key;
-      lastKeyEl.classList.remove("empty");
+    function formatCode(code) {
+      return `0x${code.toString(16).toUpperCase().padStart(8, "0")}`;
+    }
 
+    function appendRemote(key, code) {
+      lastButtonEl.textContent = key;
+      lastButtonEl.classList.remove("empty");
+
+      if (code !== null && code !== undefined) {
+        rawCodeEl.textContent = formatCode(code);
+        rawCodeEl.classList.remove("hidden");
+      } else {
+        rawCodeEl.textContent = "";
+        rawCodeEl.classList.add("hidden");
+      }
+
+      const label = code !== null && code !== undefined
+        ? `${key} (${formatCode(code)})`
+        : key;
       const li = document.createElement("li");
-      li.textContent = key;
+      li.textContent = label;
       historyEl.insertBefore(li, historyEl.firstChild);
 
       while (historyEl.children.length > MAX_HISTORY) {
@@ -296,7 +330,9 @@
             serialStatusKnown = true;
             return;
           }
-          if (data.key) appendKey(data.key);
+          if (data.type === "remote") {
+            appendRemote(data.key, data.code);
+          }
         } catch {
           showNotification("Invalid message from server");
         }

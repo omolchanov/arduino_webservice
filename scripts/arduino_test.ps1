@@ -43,11 +43,18 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warning "AUnit install returned exit code $LASTEXITCODE (may already be installed)"
 }
 
+Write-Host "Installing IRremote library..."
+& arduino-cli lib install "IRremote"
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "IRremote install returned exit code $LASTEXITCODE (may already be installed)"
+}
+
 $productionSketches = @(
     @{ Path = (Join-Path $ArduinoDir "valves"); Label = "valves" },
     @{ Path = (Join-Path $ArduinoDir "simple01"); Label = "simple01" },
     @{ Path = (Join-Path $ArduinoDir "sensors"); Label = "sensors" },
-    @{ Path = (Join-Path $ArduinoDir "mux"); Label = "mux" }
+    @{ Path = (Join-Path $ArduinoDir "mux"); Label = "mux" },
+    @{ Path = (Join-Path $ArduinoDir "tv_remote"); Label = "tv_remote" }
 )
 
 foreach ($sketch in $productionSketches) {

@@ -28,8 +28,11 @@ jobs:
       - name: Run MUX/DEMUX Python tests
         run: python -m pytest pytest/test_mux_demux.py -v
 
+      - name: Run TV Remote Python tests
+        run: python -m pytest pytest/test_tv_remote.py -v
+
       - name: Run other Python API tests
-        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py -v
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py --ignore=pytest/test_tv_remote.py -v
 
   arduino-unit-tests:
     name: Arduino unit tests
@@ -59,6 +62,11 @@ jobs:
           make -C arduino-tests/test_demux
           make -C arduino-tests/test_demux run
 
+      - name: Run tv_remote AUnit tests
+        run: |
+          make -C arduino-tests/test_tv_remote
+          make -C arduino-tests/test_tv_remote run
+
       - name: Run sensors AUnit tests
         run: |
           make -C arduino-tests/test_sensors
@@ -76,7 +84,10 @@ jobs:
         run: |
           arduino-cli core update-index
           arduino-cli core install arduino:avr
+          arduino-cli lib install "IRremote"
           arduino-cli compile -b arduino:avr:uno arduino/mulie_function \
+            --build-property "compiler.cpp.extra_flags=-Iarduino"
+          arduino-cli compile -b arduino:avr:uno arduino/tv_remote \
             --build-property "compiler.cpp.extra_flags=-Iarduino"
 
   arduino-integration-tests-wokwi:
