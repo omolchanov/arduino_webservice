@@ -20,7 +20,7 @@ RECONNECT_DELAY = 3
 ARDUINO_BOOT_DELAY = 2
 VALID_KEYS = set("0123456789*#ABCD")
 PRESSED_PREFIX = "Pressed: "
-IGNORED_LINES = {"Keypad ready"}
+IGNORED_LINES = {"Keypad ready", "Remote ready"}
 DISTANCE_PATTERN = re.compile(r"^Distance:\s*([\d.]+)\s*cm$")
 LIGHT_PATTERN = re.compile(r"^Light:\s*(\d+)$")
 TEMPERATURE_PATTERN = re.compile(r"^Temperature:\s*([\d.]+)\s*C$")
@@ -44,6 +44,9 @@ DEMUX_PATTERN = re.compile(
 )
 DISPLAY_PATTERN = re.compile(r"^Display:\s*(\d{1,3})$")
 CLOCK_PATTERN = re.compile(r"^Clock:\s*(\d{2}):(\d{2})$")
+REMOTE_PATTERN = re.compile(
+    r"^Remote:\s+(.+?)(?:\s+\(0x([0-9A-Fa-f]+)\))?$"
+)
 VALID_VALVE_GATES = frozenset({"AND", "OR", "NOT", "NAND", "NOR", "XOR", "XNOR"})
 
 clients: list[WebSocket] = []
@@ -72,12 +75,29 @@ last_demux_y0: int | None = None
 last_demux_y1: int | None = None
 last_display_value: int | None = None
 last_clock_time: str | None = None
+last_remote_key: str | None = None
+last_remote_code: int | None = None
 serial_stop = threading.Event()
 serial_port: serial.Serial | None = None
 serial_thread: threading.Thread | None = None
 serial_lock = threading.Lock()
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+def parse_remote_line(line: str) -> tuple[str, int | None] | None:
+    line = line.strip()
+    if not line or line in IGNORED_LINES:
+        return None
+    match = REMOTE_PATTERN.match(line)
+    if not match:
+        return None
+    key = match.group(1).strip()
+    if not key:
+        return None
+    code_str = match.group(2)
+    code = int(code_str, 16) if code_str else None
+    return key, code
 
 
 def parse_key_line(line: str) -> str | None:
@@ -273,6 +293,12 @@ async def broadcast_clock(time: str) -> None:
     await broadcast_message(json.dumps({"type": "clock", "time": time}))
 
 
+async def broadcast_remote(key: str, code: int | None) -> None:
+    await broadcast_message(
+        json.dumps({"type": "remote", "key": key, "code": code})
+    )
+
+
 async def broadcast_serial_status(connected: bool) -> None:
     await broadcast_message(
         json.dumps(
@@ -388,6 +414,14 @@ def notify_clock(time: str) -> None:
     last_clock_time = time
     if event_loop and event_loop.is_running():
         asyncio.run_coroutine_threadsafe(broadcast_clock(time), event_loop)
+
+
+def notify_remote(key: str, code: int | None) -> None:
+    global last_remote_key, last_remote_code
+    last_remote_key = key
+    last_remote_code = code
+    if event_loop and event_loop.is_running():
+        asyncio.run_coroutine_threadsafe(broadcast_remote(key, code), event_loop)
 
 
 def write_serial_gate(gate: str) -> bool:
@@ -526,6 +560,17 @@ def read_serial(port: serial.Serial) -> None:
             )
             notify_clock(clock_time)
             continue
+        remote = parse_remote_line(line)
+        if remote is not None:
+            key, code = remote
+            logger.info(
+                "Remote: %s code=%s (clients: %d)",
+                key,
+                code,
+                len(clients),
+            )
+            notify_remote(key, code)
+            continue
         key = parse_key_line(line)
         if key:
             asyncio.run_coroutine_threadsafe(key_queue.put(key), event_loop)
@@ -638,6 +683,11 @@ async def demultiplexor():
     return FileResponse(STATIC_DIR / "demultiplexor.html")
 
 
+@app.get("/tv-remote")
+async def tv_remote():
+    return FileResponse(STATIC_DIR / "tv_remote.html")
+
+
 @app.get("/api/status")
 async def status():
     return {
@@ -666,6 +716,8 @@ async def status():
         "last_demux_y1": last_demux_y1,
         "display_value": last_display_value,
         "clock_time": last_clock_time,
+        "last_remote_key": last_remote_key,
+        "last_remote_code": last_remote_code,
     }
 
 
@@ -794,6 +846,17 @@ async def websocket_endpoint(websocket: WebSocket):
     if last_clock_time is not None:
         await websocket.send_text(
             json.dumps({"type": "clock", "time": last_clock_time, "cached": True})
+        )
+    if last_remote_key is not None:
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "remote",
+                    "key": last_remote_key,
+                    "code": last_remote_code,
+                    "cached": True,
+                }
+            )
         )
     try:
         while True:

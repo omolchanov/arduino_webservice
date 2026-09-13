@@ -35,12 +35,14 @@ make -C arduino-tests runtests
 | `arduino/mulie_function/` | `arduino-tests/test_mulie_function/` |
 | `arduino/mux/` | `arduino-tests/test_mux/` |
 | `arduino/demux/` | `arduino-tests/test_demux/` |
+| `arduino/tv_remote/` | `arduino-tests/test_tv_remote/` |
 
 ### Arduino compile and optional hardware tests
 
 ```bash
 arduino-cli core install arduino:avr
 arduino-cli lib install "AUnit"
+arduino-cli lib install "IRremote"
 powershell -File scripts/arduino_test.ps1 -CompileOnly
 powershell -File scripts/arduino_test.ps1 -Port COM8
 ```
@@ -79,4 +81,4 @@ Close Arduino Serial Monitor before running tests or starting uvicorn.
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
 - `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit unit tests
-- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`
+- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`, `arduino/tv_remote/`
