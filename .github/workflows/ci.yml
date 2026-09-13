@@ -28,8 +28,11 @@ jobs:
       - name: Run MUX/DEMUX Python tests
         run: python -m pytest pytest/test_mux_demux.py -v
 
+      - name: Run condensator Python tests
+        run: python -m pytest pytest/test_condensator.py -v
+
       - name: Run other Python API tests
-        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py -v
+        run: python -m pytest pytest/ --ignore=arduino-tests --ignore=arduino --ignore=scripts --ignore=pytest/test_display.py --ignore=pytest/test_mux_demux.py --ignore=pytest/test_condensator.py -v
 
   arduino-unit-tests:
     name: Arduino unit tests
@@ -77,11 +80,13 @@ jobs:
       - name: Install arduino-cli
         uses: arduino/setup-arduino-cli@v1
 
-      - name: Compile mulie_function production sketch
+      - name: Compile production sketches
         run: |
           arduino-cli core update-index
           arduino-cli core install arduino:avr
           arduino-cli compile -b arduino:avr:uno arduino/mulie_function \
+            --build-property "compiler.cpp.extra_flags=-Iarduino"
+          arduino-cli compile -b arduino:avr:uno arduino/condensator \
             --build-property "compiler.cpp.extra_flags=-Iarduino"
 
   arduino-integration-tests-wokwi:
