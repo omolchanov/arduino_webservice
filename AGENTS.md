@@ -35,6 +35,7 @@ make -C arduino-tests runtests
 | `arduino/mulie_function/` | `arduino-tests/test_mulie_function/` |
 | `arduino/mux/` | `arduino-tests/test_mux/` |
 | `arduino/demux/` | `arduino-tests/test_demux/` |
+| `arduino/condensator/` | `arduino-tests/test_condensator/` |
 
 ### Arduino compile and optional hardware tests
 
@@ -79,4 +80,4 @@ Close Arduino Serial Monitor before running tests or starting uvicorn.
 - COM port configured as constant in `main.py` (`COM8`)
 - Close Arduino Serial Monitor before starting the Python app
 - `pytest/` — Python API tests; `arduino-tests/` — Arduino AUnit unit tests
-- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`
+- Production sketches: `arduino/valves/`, `arduino/simple01/`, `arduino/sensors/`, `arduino/mulie_function/`, `arduino/mux/`, `arduino/demux/`, `arduino/condensator/` (one sketch per dashboard; upload `condensator.ino` for `/condensator`)

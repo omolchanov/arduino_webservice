@@ -69,6 +69,11 @@ jobs:
           make -C arduino-tests/test_simple01
           make -C arduino-tests/test_simple01 run
 
+      - name: Run condensator AUnit tests
+        run: |
+          make -C arduino-tests/test_condensator
+          make -C arduino-tests/test_condensator run
+
       - name: Install arduino-cli
         uses: arduino/setup-arduino-cli@v1
 
