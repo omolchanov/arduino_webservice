@@ -102,10 +102,10 @@ jobs:
       - name: Install Wokwi CLI
         run: curl -L https://wokwi.com/ci/install.sh | sh
 
-      - name: Run Wokwi integration tests (demux)
+      - name: Run Wokwi integration tests (condensator)
         env:
           WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
-          WOKWI_SKETCH: demux
+          WOKWI_SKETCH: condensator
         run: |
           export PATH="$HOME/.wokwi/bin:$PATH"
           bash scripts/wokwi_integration_test.sh
@@ -114,6 +114,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wokwi-integration-reports-demux
-          path: arduino/demux/wokwi-report.log
+          name: wokwi-integration-reports-condensator
+          path: arduino/condensator/wokwi-report.log
           if-no-files-found: ignore

@@ -1,0 +1,19 @@
+name: Condensator integration test
+version: 1
+steps:
+  - wait-serial: "Charging..."
+  - set-control:
+      part-id: capSense
+      control: position
+      value: 0.85
+  - delay: 2000ms
+  - wait-serial: "V = "
+  - wait-serial: " uC"
+  - wait-serial: "Discharging..."
+  - set-control:
+      part-id: capSense
+      control: position
+      value: 0.15
+  - delay: 2000ms
+  - wait-serial: "V = "
+  - wait-serial: " uC"

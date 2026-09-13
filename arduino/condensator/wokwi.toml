@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = "build/condensator.ino.hex"
+elf = "build/condensator.ino.elf"
